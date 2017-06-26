@@ -1,27 +1,61 @@
 """
-This piece of code takes antenna position information from hsa7458_v001 and calculates all of the unique baselines.
-If an antenna does not have position data, the z position in hsa7458_v001 must be set to -1 so that it is not used in this program.
+This program contains an importable function get_baselines().  This function takes 
+HERA position information from hsa7458_v001.py.  If there is no position data for an 
+antenna in hsa7458_v001.py (i.e., the antenna does not yet exist) the z-coordinate 
+should be set to -1 in hsa7458_v001.py.  This will make sure that those antennae 
+are not used in this program.
 
-The output of the program is a dictionary.  The keys of the dictionary are unique baseline lengths.
-The value of the dictionary is a list of tuples. Each tuples is a pair of antenna numbers. For instance:
+If hsa7458_v001.py is not imported, hardcoded position information will 
+be used for 19 antennae.
 
-14.6: [ (9, 20), (9, 22) ... ]
+This position information is used to calculate all unique baselines, and 
+find all pairs of antennae with each baselines.
+The output of this program is a Python dictionary. Each key is a unique baseline, 
+and each value is a list of tuples. Each tuple contains two numbers that represent antennae.
+Example:
+{14.6: [(9, 20),(9, 22),(9, 53), ...
 ...
 ...
 
-
-14.6 (a float) is the baseline length. (9, 20) and (9, 22) are pairs of antennae that have a baseline length of 14.6.
+Antennae 9 and 20, 9 and 22, and 9 and 53 are separated by 14.6 meters.
+All keys (baselines) are floats. All antennae are represented by ints.
 
 
 Author: Austin Fox Fortino <fortino@sas.upenn.edu>
 Date: June 21, 2017
+Last Updated: June 23, 2017
 """
-
 from pprint import pprint
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-x", "--ex_ants", type=str)
+args = parser.parse_args()
+bad_ants = args.ex_ants
+
+if bad_ants != None: bad_ants = [int(ant) for ant in bad_ants.split(",")]
+else: bad_ants = []
+
+
+def calculate_baseline(antennae, pair):
+	"""
+	The decimal module is necessary for keeping the number of decimal places small.
+	Due to small imprecision, if more than 8 or 9 decimal places are used, 
+	many baselines will be calculated that are within ~1 nanometer to ~1 picometer of each other.
+	Because HERA's position precision is down to the centimeter, there is no 
+	need to worry about smaller imprecision.
+	"""
+	from decimal import getcontext, Decimal
+	getcontext().prec = 6
+
+	dx = antennae[pair[0]]['top_x'] - antennae[pair[1]]['top_x']
+	dy = antennae[pair[0]]['top_y'] - antennae[pair[1]]['top_y']
+	baseline = float((Decimal(dx)**2 + Decimal(dy)**2).sqrt())
+	
+	return baseline
 
 
 def get_baselines():
-	import decimal
 
 	try:
 		import hsa7458_v001 as cal
@@ -31,78 +65,72 @@ def get_baselines():
 		print "Unsuccessfully imported hsa7458_v001. Using hardcoded antenna position information."
 		print "As of June 22, 2017, this hardcoded information is up to date and comprehensive for 19 antennae."
 		antennae = {
-	80  :{'top_x':-14.6,	'top_y':-25.28794179,	'top_z':0.0 },	#a0
-	104 :{'top_x':0.0,		'top_y':-25.28794179,	'top_z':0.0 },	#a1
-	96  :{'top_x':14.6,		'top_y':-25.28794179,	'top_z':0.0 },	#a2
+			80  :{'top_x':-14.6,	'top_y':-25.28794179,	'top_z':0.0 },	#a0
+			104 :{'top_x':0.0,		'top_y':-25.28794179,	'top_z':0.0 },	#a1
+			96  :{'top_x':14.6,		'top_y':-25.28794179,	'top_z':0.0 },	#a2
 
-	64  :{'top_x':-21.9,	'top_y':-12.6439709,	'top_z':0.0 }, 	#a3
-	53  :{'top_x':-7.3,		'top_y':-12.6439709,	'top_z':0.0 }, 	#a4
-	31  :{'top_x':7.3,		'top_y':-12.6439709,	'top_z':0.0 }, 	#a5
-	65  :{'top_x':21.9,		'top_y':-12.6439709,	'top_z':0.0 }, 	#a5
-
-
-	88  :{'top_x':-29.2,	'top_y':0.0,			'top_z':0.0 }, 	#a5
-	9   :{'top_x':-14.6,	'top_y':0.0,			'top_z':0.0 }, 	#a5
-	20  :{'top_x':0.0,		'top_y':0.0,			'top_z':0.0 }, 	#a5
-	89  :{'top_x':14.6,		'top_y':0.0,			'top_z':0.0 }, 	#a5
-	43  :{'top_x':29.2,		'top_y':0.0,			'top_z':0.0 }, 	#a5
-
-	105 :{'top_x':-21.9,	'top_y':12.6439709,		'top_z':0.0 }, 	#a3
-	22  :{'top_x':-7.3,		'top_y':12.6439709,		'top_z':0.0 }, 	#a4
-	81  :{'top_x':7.3,		'top_y':12.6439709,		'top_z':0.0 }, 	#a5
-	10  :{'top_x':21.9,		'top_y':12.6439709,		'top_z':0.0 }, 	#a5
+			64  :{'top_x':-21.9,	'top_y':-12.6439709,	'top_z':0.0 }, 	#a3
+			53  :{'top_x':-7.3,		'top_y':-12.6439709,	'top_z':0.0 }, 	#a4
+			31  :{'top_x':7.3,		'top_y':-12.6439709,	'top_z':0.0 }, 	#a5
+			65  :{'top_x':21.9,		'top_y':-12.6439709,	'top_z':0.0 }, 	#a5
 
 
-	72  :{'top_x':-14.6,	'top_y':25.28794179,	'top_z':0.0 }, 	#a0
-	112 :{'top_x':0.0,		'top_y':25.28794179,	'top_z':0.0 }, 	#a1
-	97  :{'top_x':14.6,		'top_y':25.28794179,	'top_z':0.0 }, 	#a2
+			88  :{'top_x':-29.2,	'top_y':0.0,			'top_z':0.0 }, 	#a5
+			9   :{'top_x':-14.6,	'top_y':0.0,			'top_z':0.0 }, 	#a5
+			20  :{'top_x':0.0,		'top_y':0.0,			'top_z':0.0 }, 	#a5
+			89  :{'top_x':14.6,		'top_y':0.0,			'top_z':0.0 }, 	#a5
+			43  :{'top_x':29.2,		'top_y':0.0,			'top_z':0.0 }, 	#a5
+
+			105 :{'top_x':-21.9,	'top_y':12.6439709,		'top_z':0.0 }, 	#a3
+			22  :{'top_x':-7.3,		'top_y':12.6439709,		'top_z':0.0 }, 	#a4
+			81  :{'top_x':7.3,		'top_y':12.6439709,		'top_z':0.0 }, 	#a5
+			10  :{'top_x':21.9,		'top_y':12.6439709,		'top_z':0.0 }, 	#a5
+
+
+			72  :{'top_x':-14.6,	'top_y':25.28794179,	'top_z':0.0 }, 	#a0
+			112 :{'top_x':0.0,		'top_y':25.28794179,	'top_z':0.0 }, 	#a1
+			97  :{'top_x':14.6,		'top_y':25.28794179,	'top_z':0.0 }, 	#a2
 		}
 
-	decimal.getcontext().prec = 6
-	lengths = {}
+	baselines = {}
 
 	for antenna_i in antennae:
-		if antennae[antenna_i]['top_z'] == -1:
-			continue
-
+		if antennae[antenna_i]['top_z'] == -1: continue
+		if antenna_i in bad_ants: continue
+		
 		for antenna_j in antennae:
-			if antennae[antenna_j]['top_z'] == -1:
-				continue
-			if antenna_i == antenna_j:
-				continue
-			
-			#Lines 77-80 calculate the baseline between antenna_i and antenna_j.
-			dx = antennae[antenna_i]['top_x'] - antennae[antenna_j]['top_x']
-			dy = antennae[antenna_i]['top_y'] - antennae[antenna_j]['top_y']
-			baseline_length = (decimal.Decimal(dx)**2 + decimal.Decimal(dy)**2).sqrt()
-			baseline_length = float(baseline_length)
+			if antennae[antenna_j]['top_z'] == -1: continue
+			if antenna_j in bad_ants: continue
 
-			#Lines 82-85 makes sure that for a pair of antennae, (a, b), a is less than b.
-			if antenna_i < antenna_j:
-				pair = (antenna_i, antenna_j)
-			else:
-				pair = (antenna_j, antenna_i)
+			if antenna_i == antenna_j: continue
+			elif antenna_i < antenna_j: pair = (antenna_i, antenna_j)
+			elif antenna_i > antenna_j: pair = (antenna_j, antenna_i)
 
-			#If baseline_length is a new unqiue baseline, then add it to the dictionary along with its pair.
-			if (baseline_length not in lengths):
-				lengths[baseline_length] = [pair]
+			baseline = calculate_baseline(antennae, pair)
 
-			#If (a, b) or (b, a) already exists, do not add it to the dictionary.  Else, add it to the corresponding existing unique baseline.
-			if ((antenna_i, antenna_j) in lengths[baseline_length]) or ((antenna_j, antenna_i) in lengths[baseline_length]):
-				continue
-			else:
-				lengths[baseline_length].append(pair)
+			if (baseline not in baselines): baselines[baseline] = [pair]
+			elif (pair in baselines[baseline]): continue
+			else: baselines[baseline].append(pair)
 
-	return lengths
+	return baselines
 
-#Lines 100-103 Pretty print the dictionary with the list of pairs of antennae sorted.  This is for convenience when testing.
-lengths = get_baselines()
-for baseline in lengths:
-	lengths[baseline].sort()
-pprint(lengths)
 
-#Lines 105-108 count how many unique baselines there are.
-total_baselines = 0
-for key in lengths:
-	total_baselines += 1
-print "Total Baselines:", total_baselines
+def display():
+	total_baselines = 0
+	total_pairs = 0
+	baselines = get_baselines()
+	for baseline in baselines:
+		baselines[baseline].sort()
+
+		total_baselines += 1
+
+		for pairs in baselines[baseline]:
+			total_pairs += 1
+
+	pprint(baselines)
+	print "Total Unique Baselines:", total_baselines
+	print "Total Pairs:", total_pairs
+	print "Bad Antennae:", bad_ants
+
+
+display()
