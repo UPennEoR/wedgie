@@ -22,11 +22,15 @@ parser.add_argument("filenames", help="your HERA data file(s)", nargs="*")
 parser.add_argument("calfile", help="your calfile")
 parser.add_argument("pol", help="polarization of data")
 parser.add_argument("--time_avg", help="Toggle time averaging", action="store_true")
+parser.add_argument("--ex_ants", type=str, help='comma-delimited list of antennae to exclude.')
 args=parser.parse_args()
+
+# format ex_ants argument for intake
+ex_ants_list = map(int, args.ex_ants.split(','))
 
 #make wedge
 if args.time_avg:
-    wedge_utils.plot_wedge_timeavg(args.filenames, args.calfile.split(".")[0], args.pol) 
+    wedge_utils.plot_wedge_timeavg(args.filenames, args.pol, args.calfile.split(".")[0], ex_ants_list) 
 else:
-    wedge_utils.plot_wedge_blavg(args.filenames, args.pol) 
+    wedge_utils.plot_wedge_blavg(args.filenames, args.pol, args.calfile.split(".")[0], ex_ants_list) 
 
