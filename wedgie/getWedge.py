@@ -21,12 +21,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("filenames", help="your HERA data file(s)", nargs="*")
 parser.add_argument("calfile", help="your calfile")
 parser.add_argument("pol", help="polarization of data")
-parser.add_argument("time_avg", help="Toggle time averaging")
+parser.add_argument("--time_avg", help="Toggle time averaging", action="store_true")
 args=parser.parse_args()
 
 #make wedge
 if args.time_avg:
-    wedge_utils.plot_wedge_timeavg(args.filenames) #include other arguments: pol,calfile
+    wedge_utils.plot_wedge_timeavg(args.filenames, args.calfile.split(".")[0], args.pol) 
 else:
-    wedge_utils.plot_wedge_blavg(args.filenames) #...update...
+    wedge_utils.plot_wedge_blavg(args.filenames, args.pol) 
 

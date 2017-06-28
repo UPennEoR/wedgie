@@ -8,13 +8,13 @@ import numpy as np
 import scipy.constants as sc
 import aipy
 
-def plot_wedge_blavg(filenames):
+def plot_wedge_blavg(filenames , pol):
     """
     Plots wedges per baseline length, averaged over baselines
     """
     
     #get data from file
-    t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr='xx') #XXX hardcoded
+    t,d,f = capo.miriad.read_files(filenames,antstr='cross', polstr=pol)
     
     #create variable to store the wedge subplots in
     wedgeslices = []
@@ -28,13 +28,13 @@ def plot_wedge_blavg(filenames):
     #for each baselength in the dictionary
     for length in baselengths:
         
-        totald = np.zeros_like(d[antdict[length][0]]['xx']) #XXX hardcoded pol #variable to store cumulative fft data
+        totald = np.zeros_like(d[antdict[length][0]][pol]) #variable to store cumulative fft data
         
         #cycle through every ant pair of the given baselength
         for antpair in antdict[length]:
             
             #fft the data wrt freq and sum it with the previous iterations
-            ftd_2D_data = np.fft.ifft(d[antpair]['xx'],axis=1) #XXX hardcoded pol
+            ftd_2D_data = np.fft.ifft(d[antpair][pol],axis=1) 
             totald += ftd_2D_data 
         
         #get average of all values for this baselength, store in wedgeslices
@@ -42,7 +42,7 @@ def plot_wedge_blavg(filenames):
         wedgeslices.append(totald)
 
 	#get data to recalculate axes  
-	delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #XXX hardcoded #1024 bins, channel width of 0.1 GHz/1024
+	delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #XXX hard coded #1024 bins, channel width of 0.1 GHz/1024
 	d_start = delays[0]
 	d_end = delays[-1]
 	t_start = wedgeslices[0].shape[0]
@@ -67,12 +67,13 @@ def plot_wedge_blavg(filenames):
     
     plt.show()
 
-def plot_wedge_timeavg(filenames,pol='xx'):
+def plot_wedge_timeavg(filenames, calfile, pol):
+
     """
     Plots wedges per baseline length, averaged over baselines and time
     """
     #get data from file
-    t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr='xx') #XXX hardcoded pol
+    t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
     
     #stores vis^2 for each baselength averaged over time
     wedgeslices = []
@@ -97,12 +98,11 @@ def plot_wedge_timeavg(filenames,pol='xx'):
 
             #create/get metadata    
             uv = aipy.miriad.UV(filenames[0])
-            aa = aipy.cal.get_aa('hsa7458_v000', uv['sdf'], uv['sfreq'], uv['nchan']) #XXX hardcoded cal file
-            aipy.scripting.uv_selector(uv, str(antpair[0])+'_'+str(antpair[1]), 'xx') #XXX hardcoded pol
+            aa = aipy.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan']) 
             del(uv)
 
             #fourier transform the data
-            ftd_2D_data = np.fft.ifft(d[antpair]['xx'],axis=1) #XXX hardcoded pol
+            ftd_2D_data = np.fft.ifft(d[antpair][pol],axis=1) 
 
             #holds our data
             vissq_per_antpair = np.zeros((ntimes // 2 ,nchan))
@@ -111,7 +111,7 @@ def plot_wedge_timeavg(filenames,pol='xx'):
             for i in range(ntimes):
                  
                 #set up phasing    
-                aa.set_active_pol('xx') #XXX hardcoded pol
+                aa.set_active_pol(pol) 
                 if i!=0:
                     old_zenith = zenith
                 else:    
@@ -140,7 +140,7 @@ def plot_wedge_timeavg(filenames,pol='xx'):
         
     
 	#plot wedge
-    delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #1024 bins, channel width of 0.1 GHz/1024 #XXX hardcoded 
+    delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #XXX hardcoded #1024 bins, channel width of 0.1 GHz/1024 
     d_start = delays[0]
     d_end = delays[-1]
     plot = plt.imshow(wedgeslices, aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(wedgeslices),0])
