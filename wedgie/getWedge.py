@@ -30,7 +30,7 @@ ex_ants_list = map(int, args.ex_ants.split(','))
 
 #make wedge
 if args.time_avg:
-    wedge_utils.plot_wedge_timeavg(args.filenames, args.pol, args.calfile.split(".")[0], ex_ants_list) 
+    wedge_utils.plot_wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list) 
 else:
-    wedge_utils.plot_wedge_blavg(args.filenames, args.pol, args.calfile.split(".")[0], ex_ants_list) 
+    wedge_utils.plot_wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list) 
 

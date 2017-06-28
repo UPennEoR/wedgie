@@ -129,12 +129,14 @@ def plot_wedge_blavg(filenames, pol, calfile, ex_ants=[]):
                     
     #scale x axis to the significant information
     axarr[0].set_xlim(-450,450)
-    
+
+    plt.savefig('test.png')    
     plt.show()
 
 def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
     """
     Plots wedges per baseline length, averaged over baselines and time
+    Remember not to inclue ".py" at the end of calfile
     """
     #get data from file
     t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
