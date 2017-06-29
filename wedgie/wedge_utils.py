@@ -97,10 +97,18 @@ def plot_wedge_blavg(filenames, pol, calfile, ex_ants=[]):
         
         #cycle through every ant pair of the given baselength
         for antpair in antdict[length]:
-            
-            #fft the data wrt freq and sum it with the previous iterations
-            ftd_2D_data = np.fft.ifft(d[antpair][pol],axis=1) 
-            totald += ftd_2D_data 
+
+            #CLEAN and fft the data
+            clean=1e-3
+            w = aipy.dsp.gen_window(d[antpair][pol].shape[-1], window='blackman-harris')
+            _dw = np.fft.ifft(d[antpair][pol]*w)
+            _ker= np.fft.ifft(f[antpair][pol]*w)
+            gain = aipy.img.beam_gain(_ker)
+            for time in range(_dw.shape[0]):
+                _dw[time,:],info = aipy.deconv.clean(_dw[time,:], _ker[time,:], tol=clean)
+                _dw[time,:] += info['res']/gain
+          
+            totald += np.ma.array(_dw)
         
         #get average of all values for this baselength, store in wedgeslices
         totald /= len(antdict[length])
@@ -136,7 +144,6 @@ def plot_wedge_blavg(filenames, pol, calfile, ex_ants=[]):
 def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
     """
     Plots wedges per baseline length, averaged over baselines and time
-    Remember not to inclue ".py" at the end of calfile
     """
     #get data from file
     t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
@@ -164,11 +171,19 @@ def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
 
             #create/get metadata    
             uv = aipy.miriad.UV(filenames[0])
-            aa = aipy.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan']) 
+            aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan']) 
             del(uv)
 
-            #fourier transform the data
-            ftd_2D_data = np.fft.ifft(d[antpair][pol],axis=1) 
+            #CLEAN and fft the data
+            clean=1e-3
+            w = aipy.dsp.gen_window(d[antpair][pol].shape[-1], window='blackman-harris')
+            _dw = np.fft.ifft(d[antpair][pol]*w)
+            _ker= np.fft.ifft(f[antpair][pol]*w)
+            gain = aipy.img.beam_gain(_ker)
+            for time in range(_dw.shape[0]):
+                _dw[time,:],info = aipy.deconv.clean(_dw[time,:], _ker[time,:], tol=clean)
+                _dw[time,:] += info['res']/gain
+            ftd_2D_data = np.ma.array(_dw)
 
             #holds our data
             vissq_per_antpair = np.zeros((ntimes // 2 ,nchan))
