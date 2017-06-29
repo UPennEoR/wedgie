@@ -72,7 +72,7 @@ def get_baselines(calfile, ex_ants=[]):
                 baselines[baseline].append(pair)
     return baselines
 
-def plot_wedge_blavg(filenames, pol, calfile, ex_ants=[]):
+def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     """
     Plots wedges per baseline length, averaged over baselines.
     Remember to not include the ".py" in the name of the calfile
@@ -112,36 +112,19 @@ def plot_wedge_blavg(filenames, pol, calfile, ex_ants=[]):
         
         #get average of all values for this baselength, store in wedgeslices
         totald /= len(antdict[length])
-        wedgeslices.append(totald)
+        wedgeslices.append(np.log10(np.fft.fftshift(np.abs(totald), axes=1)))
 
     #get data to recalculate axes  
     delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #XXX hard coded #1024 bins, channel width of 0.1 GHz/1024
-    d_start = delays[0]
-    d_end = delays[-1]
-    t_start = wedgeslices[0].shape[0]
 
-    #create subplot to plot data
-    f,axarr = plt.subplots(len(wedgeslices),1,sharex=True,sharey=True)
-    
-    #add axes labels
-    f.add_subplot(111, frameon=False)
-    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', 
-                    right='off')
-    plt.xlabel("Delay (ns)")
-    plt.ylabel("Time")
-    
-    #plot individual wedge slices
-    for i in range(len(wedgeslices)):
-        axarr[i].imshow(np.log10(np.fft.fftshift(np.abs(wedgeslices[i]),
-             axes=1)),aspect='auto',interpolation='nearest',vmin=-6,vmax=-1, extent=[d_start,d_end,t_start,0])
-                    
-    #scale x axis to the significant information
-    axarr[0].set_xlim(-450,450)
+    #save filedata as npz
+    #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
+    fn1, fn2 = filenames[0].split('.'), filenames[-1].split('.')
+    npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+fn1[3]+'.'+fn1[4]+'.'+fn1[5]+'.blavg.npz'
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
+    return npz_name
 
-    plt.savefig('test.png')    
-    plt.show()
-
-def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
+def wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
     """
     Plots wedges per baseline length, averaged over baselines and time
     """
@@ -218,13 +201,51 @@ def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
         vissq_per_bl /= len(antdict[baselength])
         wedgeslices.append(np.log10(np.fft.fftshift(np.mean(np.abs(vissq_per_bl), axis=0))))
         print 'finished a wedgeslice!'
-        
-    
-    #plot wedge
+
+    #get delays
     delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #XXX hardcoded #1024 bins, channel width of 0.1 GHz/1024 
-    d_start = delays[0]
-    d_end = delays[-1]
-    plot = plt.imshow(wedgeslices, aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(wedgeslices),0])
+    
+    #save filedata as npz
+    #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
+    fn1, fn2 = filenames[0].split('.'), filenames[-1].split('.')
+    npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+fn1[3]+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
+    return npz_name
+    
+def plot_blavg(npz_name): 
+
+    plot_data = np.load(npz_name)
+
+    d_start = plot_data['dlys'][0]
+    d_end = plot_data['dlys'][-1]
+    t_start = plot_data['wdgslc'][0].shape[0]
+
+    #create subplot to plot data
+    f,axarr = plt.subplots(len(plot_data['wdgslc']),1,sharex=True,sharey=True)
+    
+    #add axes labels
+    f.add_subplot(111, frameon=False)
+    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', 
+                    right='off')
+    plt.xlabel("Delay (ns)")
+    plt.ylabel("Time")
+    
+    #plot individual wedge slices
+    for i in range(len(plot_data['wdgslc'])):
+        axarr[i].imshow(plot_data['wdgslc'][i], aspect='auto',interpolation='nearest',vmin=-6,vmax=-1, extent=[d_start,d_end,t_start,0])
+                    
+    #scale x axis to the significant information
+    axarr[0].set_xlim(-450,450)
+
+    plt.show()
+
+def plot_timeavg(npz_name):
+
+    plot_data = np.load(npz_name)
+    
+    d_start = plot_data['dlys'][0]
+    d_end = plot_data['dlys'][-1]
+    plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0])
     plt.xlabel("Delay (ns)")
     plt.ylabel("Baseline length (shortest to longest)")
     cbar = plt.colorbar()
@@ -233,7 +254,7 @@ def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
 
     #calculate light travel time for each baselength
     light_times = []
-    for length in baselengths:
+    for length in plot_data['bls']:
         light_times.append(length/sc.c*10**9)
 
     #plot lines on plot using the light travel time
@@ -243,3 +264,4 @@ def plot_wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
        plt.plot(x1, y1, x2, y2, color = 'white')
 
     plt.show()
+

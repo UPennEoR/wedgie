@@ -16,6 +16,7 @@ Date: 6/21/2017
 
 import argparse
 import wedge_utils
+
 #get filename from command line argument
 parser = argparse.ArgumentParser()
 parser.add_argument("filenames", help="your HERA data file(s)", nargs="*")
@@ -23,14 +24,29 @@ parser.add_argument("calfile", help="your calfile")
 parser.add_argument("pol", help="polarization of data")
 parser.add_argument("--time_avg", help="Toggle time averaging", action="store_true")
 parser.add_argument("--ex_ants", type=str, help='comma-delimited list of antennae to exclude.')
+parser.add_argument("--plot", help="toggle plotting the data in addition to saving as a .npz", action="store_true")
+parser.add_argument("--only_plot", help="call just the plot functions for filenames=npz name", action="store_true")
 args=parser.parse_args()
 
 # format ex_ants argument for intake
-ex_ants_list = map(int, args.ex_ants.split(','))
+if not args.ex_ants is None:
+    ex_ants_list = map(int, args.ex_ants.split(','))
 
-#make wedge
-if args.time_avg:
-    wedge_utils.plot_wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list) 
+if args.only_plot:
+    for filename in args.filenames:
+        if filename.split('.')[-2] == 'timeavg':
+            wedge_utils.plot_timeavg(filename)
+        elif filename.split('.')[-2] == 'blavg':
+            wedge_utils.plot_blavg(filename)
 else:
-    wedge_utils.plot_wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list) 
+    #make wedge
+    if args.time_avg:
+        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+        if args.plot: 
+            wedge_utils.plot_timeavg(npz_name)
+    else:
+        npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+        if args.plot:
+            wedge_utils.plot_blavg(npz_name) 
+
 
