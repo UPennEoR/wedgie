@@ -4,6 +4,7 @@ Module for wedge-creation methods
 import capo
 import sys
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy.constants as sc
 import aipy
@@ -249,7 +250,7 @@ def plot_blavg(npz_name):
 
     plt.show()
 
-def plot_timeavg(npz_name):
+def plot_timeavg(npz_name, multi=False):
 
     plot_data = np.load(npz_name)
     
@@ -257,11 +258,11 @@ def plot_timeavg(npz_name):
     d_end = plot_data['dlys'][-1]
     plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0], vmin=-3.0, vmax=1.0)
     plt.xlabel("Delay (ns)")
-    plt.ylabel("Baseline length (shortest to longest)")
+    plt.ylabel("Baseline length (short to long)")
     cbar = plt.colorbar()
     cbar.set_label("log10((mK)^2)")
     plt.xlim((-450,450))
-    plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2])
+    plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
 
     #calculate light travel time for each baselength
     light_times = []
@@ -274,6 +275,27 @@ def plot_timeavg(npz_name):
        x2, y2 = [-light_times[i], -light_times[i]], [i, i+1]
        plt.plot(x1, y1, x2, y2, color = 'white')
     
+    if multi:
+        return
     plt.savefig(npz_name[:-3]+'png')
     plt.show()
+
+def plot_multi_timeavg(npz_names):
+    #set up multiple plots
+    nplots = len(npz_names)
+    plt.figure(figsize=(4*nplots-3,3))
+    G = gridspec.GridSpec(3, 4*nplots-4)
+
+    #plot each plot in its own gridspec area   
+    for i in range(len(npz_names)):
+        axes = plt.subplot(G[:, (i*3):(i*3)+3])
+        plot_timeavg(npz_names[i], multi=True)
+
+    plt.tight_layout()
+    plt.show()  
+
+
+
+
+
 
