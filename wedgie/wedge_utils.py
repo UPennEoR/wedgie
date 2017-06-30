@@ -229,11 +229,21 @@ def plot_blavg(npz_name):
                     right='off')
     plt.xlabel("Delay (ns)")
     plt.ylabel("Time")
-    
+
+    #calculate light travel time for each baselength
+ 
     #plot individual wedge slices
     for i in range(len(plot_data['wdgslc'])):
+
+        #plot the graph
         axarr[i].imshow(plot_data['wdgslc'][i], aspect='auto',interpolation='nearest',vmin=-6,vmax=-1, extent=[d_start,d_end,t_start,0])
-                    
+
+        #plot light delay time lines
+        light_time = (plot_data['bls'][i])/sc.c*10**9
+        x1, y1 = [light_time, light_time], [0, np.shape(plot_data['wdgslc'][i])[0]] 
+        x2, y2 = [-light_time, -light_time], [0, np.shape(plot_data['wdgslc'][i])[0]]
+        axarr[i].plot(x1, y1, x2, y2, color = 'white') 
+     
     #scale x axis to the significant information
     axarr[0].set_xlim(-450,450)
 
@@ -245,12 +255,13 @@ def plot_timeavg(npz_name):
     
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
-    plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0])
+    plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0], vmin=-3.0, vmax=1.0)
     plt.xlabel("Delay (ns)")
     plt.ylabel("Baseline length (shortest to longest)")
     cbar = plt.colorbar()
     cbar.set_label("log10((mK)^2)")
     plt.xlim((-450,450))
+    plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2])
 
     #calculate light travel time for each baselength
     light_times = []
@@ -262,6 +273,7 @@ def plot_timeavg(npz_name):
        x1, y1 = [light_times[i], light_times[i]], [i, i+1] 
        x2, y2 = [-light_times[i], -light_times[i]], [i, i+1]
        plt.plot(x1, y1, x2, y2, color = 'white')
-
+    
+    plt.savefig(npz_name[:-3]+'png')
     plt.show()
 
