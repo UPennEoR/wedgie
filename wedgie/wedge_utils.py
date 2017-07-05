@@ -208,7 +208,7 @@ def wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
     
     #save filedata as npz
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
-    fn1, fn2 = filenames[0].split('.'), filenames[-1].split('.')
+    fn1, fn2 = (filenames[0].split('/')[-1]).split('.'), (filenames[-1].split('/')[-1]).split('.')
     npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+fn1[3]+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
     return npz_name
