@@ -302,8 +302,3 @@ def plot_multi_timeavg(npz_names):
     plt.tight_layout()
     plt.show()  
 
-
-
-
-
-
