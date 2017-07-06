@@ -22,7 +22,7 @@ import glob
 parser = argparse.ArgumentParser()
 parser.add_argument("filenames", help="your HERA data file(s)", nargs="*")
 parser.add_argument("calfile", help="your calfile")
-parser.add_argument("pol", help="comma-delimited list of pols to plot for filenames")
+parser.add_argument("pol", help="comma-delimited list of pols to plot for filenames, or specifying 'stokes' calculates all stokes parameters")
 parser.add_argument("--time_avg", help="Toggle time averaging", action="store_true")
 parser.add_argument("--ex_ants", type=str, help='comma-delimited list of antennae to exclude.')
 parser.add_argument("--plot", help="toggle plotting the data in addition to saving as a .npz", action="store_true")
@@ -35,7 +35,26 @@ pols = args.pol.split(",")
 if not args.ex_ants is None:
     ex_ants_list = map(int, args.ex_ants.split(','))
 
-if args.only_plot and (len(pols) == 1 ):
+if pols == ['stokes']:
+    filenames = []
+    for pol in ['xx','xy','yx','yy']:
+        #make a list of all filenames for each polarization
+        pol_filenames = []
+        for filename in args.filenames:
+            #replace polarization in the filename with pol we want to see
+            filepol = filename.split('.')[-3]
+            new_filename = filename.split(filepol)[0]+pol+filename.split(filepol)[1]
+            #append it if it's not already there
+            if not any(new_filename in s for s in pol_filenames):
+                pol_filenames.append(new_filename)
+        filenames.append(pol_filenames)
+    #calculate and get the names of the npz files
+    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], ex_ants_list)
+    
+    if args.plot:
+        wedge_utils.plot_multi_timeavg(npz_names)
+
+elif args.only_plot and (len(pols) == 1 ):
     for filename in args.filenames:
         if filename.split('.')[-2] == 'timeavg':
             wedge_utils.plot_timeavg(filename)
