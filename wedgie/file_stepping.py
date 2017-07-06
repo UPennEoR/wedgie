@@ -19,7 +19,7 @@ from time import time
 t0 = time()
 
 files = []
-for file in glob("/data4/paper/HERA2015/2457746/PennData/fourpol/*.OR"):
+for file in glob("/data4/paper/HERA2015/2457746/PennData/fourpol/*.uvcOR"):
     files.append("/data4/paper/HERA2015/2457746/PennData/fourpol/" + file)
 print files
 sorted(files)
