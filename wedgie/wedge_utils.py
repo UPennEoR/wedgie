@@ -8,6 +8,10 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy.constants as sc
 import aipy
+import gen_utils as gu
+import cosmo_utils as cu
+
+# Calfile-specific manipulations
 
 def calculate_baseline(antennae, pair):
     """
@@ -72,6 +76,8 @@ def get_baselines(calfile, ex_ants=[]):
             else:
                 baselines[baseline].append(pair)
     return baselines
+
+# wedge/pitchfork calculation methods
 
 def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     """
@@ -212,7 +218,9 @@ def wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
     npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+fn1[3]+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
     return npz_name
-    
+
+# Plotting routines
+
 def plot_blavg(npz_name): 
 
     plot_data = np.load(npz_name)

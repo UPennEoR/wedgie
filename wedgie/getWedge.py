@@ -29,11 +29,15 @@ parser.add_argument("--plot", help="toggle plotting the data in addition to savi
 parser.add_argument("--only_plot", help="call just the plot functions for filenames=npz name", action="store_true")
 args=parser.parse_args()
 
+
+
 pols = args.pol.split(",")
 
 # format ex_ants argument for intake
 if not args.ex_ants is None:
     ex_ants_list = map(int, args.ex_ants.split(','))
+
+import IPython;IPython.embed()
 
 if args.only_plot and (len(pols) == 1 ):
     for filename in args.filenames:
