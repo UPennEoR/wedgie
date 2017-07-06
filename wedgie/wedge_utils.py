@@ -225,14 +225,10 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
         [[xx files],[xy files],[yx files],[yy files]]
     """
     
-    print filenames
-    
     txx,dxx,fxx = capo.miriad.read_files(filenames[0],antstr='cross',polstr='xx')
     txy,dxy,fxy = capo.miriad.read_files(filenames[1],antstr='cross',polstr='xy')
     tyx,dyx,fyx = capo.miriad.read_files(filenames[2],antstr='cross',polstr='yx')
     tyy,dyy,fyy = capo.miriad.read_files(filenames[3],antstr='cross',polstr='yy')
-    
-    print filenames
     
     #calculate I (VI = Vxx + Vyy)
     tI = txx
@@ -242,7 +238,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
         dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
         fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
     nameI = wedge_timeavg(filenames[0], 'I', calfile, ex_ants, stokes=[tI, dI, fI])
-    print 'I worked!'
+    print 'Stokes I completed'
 
     #calculate Q (VQ = Vxx - Vyy)
     tQ = txx
@@ -252,7 +248,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
         dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
         fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
     nameQ = wedge_timeavg(filenames[0], 'Q', calfile, ex_ants, stokes=[tQ, dQ, fQ])
-    print 'Q worked!'
+    print 'Stokes Q completed'
     
     #calculate U (VU = Vxy + Vyx)
     tU = txy
@@ -262,7 +258,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
         dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
         fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
     nameU = wedge_timeavg(filenames[2], 'U', calfile, ex_ants, stokes=[tU, dU, fU])
-    print 'U worked!'
+    print 'Stokes U completed'
     
     #calculate V (VV = -i*Vxy + i*Vyx)
     tV = txy
@@ -272,9 +268,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
         dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
     nameV = wedge_timeavg(filenames[2], 'V', calfile, ex_ants, stokes=[tV, dV, fV])
-    print 'V worked!'
-    
-    print [nameI, nameQ, nameU, nameV]
+    print 'Stokes V completed'
     
     return [nameI, nameQ, nameU, nameV]
     
