@@ -21,15 +21,14 @@ t0 = time()
 
 files = []
 for file in glob("/data4/paper/HERA2015/2457746/PennData/fourpol/*.OR"):
-    files.append("/data4/paper/HERA2015/2457746/PennData/fourpol/*.OR" + file)
+    files.append("/data4/paper/HERA2015/2457746/PennData/fourpol/" + file)
 sorted(files)
 
 calfile = "hsa7458_v001"
-pol = "xx"
+pol = "xx,xy,yx,yy"
 time_avg = "--time_avg"
 ex_ants = "--ex_ants=81"
-plot = ""
-args = [calfile, pol, time_avg, ex_ants, plot]
+args = [calfile, pol, time_avg, ex_ants]
 
 troubleshoot_times = []
 
