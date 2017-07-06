@@ -14,7 +14,6 @@ Last Updated: July 5, 2017
 
 from os import system, listdir
 from glob import glob
-from pprint import pprint
 from time import time
 
 t0 = time()
@@ -22,6 +21,7 @@ t0 = time()
 files = []
 for file in glob("/data4/paper/HERA2015/2457746/PennData/fourpol/*.OR"):
     files.append("/data4/paper/HERA2015/2457746/PennData/fourpol/" + file)
+print files
 sorted(files)
 
 calfile = "hsa7458_v001"
@@ -29,8 +29,6 @@ pol = "xx,xy,yx,yy"
 time_avg = "--time_avg"
 ex_ants = "--ex_ants=81"
 args = [calfile, pol, time_avg, ex_ants]
-
-troubleshoot_times = []
 
 for file_index in range(len(files)):
     
@@ -44,10 +42,7 @@ for file_index in range(len(files)):
     t2 = time()
     t = t2-t1
     print t
-    troubleshoot_times.append(t)
 
 tf = time()
 
-troubleshoot_times.append(sum(troubleshoot_times))
-pprint("Troubleshot times in order:", troubleshoot_times)
 print "Total time:", t0-tf
