@@ -352,6 +352,7 @@ def plot_multi_timeavg(npz_names):
         plot_timeavg(npz_names[i], multi=True)
 
     plt.tight_layout()
+    plt.savefig(npz_names[0][:-3] + "multi.png")
     plt.show()  
 
 
