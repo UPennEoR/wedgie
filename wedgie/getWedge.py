@@ -44,14 +44,26 @@ if args.only_plot and (len(pols) == 1 ):
 
 elif (not args.only_plot) and (len(pols) == 1):
     #make wedge
-    if args.time_avg:
-        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
-        if args.plot: 
-            wedge_utils.plot_timeavg(npz_name)
+    if not args.ex_ants is None:
+        if args.time_avg:
+            npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+            if args.plot: 
+                wedge_utils.plot_timeavg(npz_name)
+        else:
+            npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+            if args.plot:
+                wedge_utils.plot_blavg(npz_name)
+
     else:
-        npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
-        if args.plot:
-            wedge_utils.plot_blavg(npz_name)
+        if args.time_avg:
+            npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0])
+            if args.plot: 
+                wedge_utils.plot_timeavg(npz_name)
+        else:
+            npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0])
+            if args.plot:
+                wedge_utils.plot_blavg(npz_name)
+
 
 elif (len(pols) > 1):
 
