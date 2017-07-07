@@ -17,19 +17,43 @@ Date: 6/21/2017
 import argparse
 import wedge_utils
 import glob
+import os
+from pprint import pprint
 
 #get filename from command line argument
 parser = argparse.ArgumentParser()
-parser.add_argument("filenames", help="your HERA data file(s)", nargs="*")
-parser.add_argument("calfile", help="your calfile")
-parser.add_argument("pol", help="comma-delimited list of pols to plot for filenames")
-parser.add_argument("--time_avg", help="Toggle time averaging", action="store_true")
-parser.add_argument("--ex_ants", type=str, help='comma-delimited list of antennae to exclude.')
-parser.add_argument("--plot", help="toggle plotting the data in addition to saving as a .npz", action="store_true")
-parser.add_argument("--only_plot", help="call just the plot functions for filenames=npz name", action="store_true")
-args=parser.parse_args()
+parser.add_argument('filenames', help='your HERA data file(s)', nargs='*')
+parser.add_argument('calfile', help='your calfile')
+parser.add_argument('pol', help='comma-delimited list of pols to plot for filenames')
+parser.add_argument('--time_avg', help='Toggle time averaging', action='store_true')
+parser.add_argument('--ex_ants', type=str, help='comma-delimited list of antennae to exclude.')
+parser.add_argument('--plot', help='toggle plotting the data in addition to saving as a .npz', action='store_true')
+parser.add_argument('--only_plot', help='call just the plot functions for filenames=npz name', action='store_true')
+parser.add_argument('--step', help='Toggle file stepping.', action='store')
+args = parser.parse_args()
 
 pols = args.pol.split(",")
+
+if not args.step is None:
+    step = int(args.step)
+    files = args.filenames
+    arg_new = [args.calfile, args.pol]
+
+    if args.time_avg:
+        arg_new.append("--time_avg")
+    if args.plot:
+        arg_new.append("--plot")
+    elif args.only_plot:
+        arg_new.append("--only_plot")
+    if not args.ex_ants is None:
+        arg_new.append("--ex_ants={}".format(args.ex_ants))
+
+    for file_index in range(0, len(files), step):
+        cmd = files[file_index : file_index + step]
+        cmd.extend(arg_new)
+        cmd = " ".join(cmd)
+        pprint(cmd)
+        os.system("python2.7 getWedge.py %s" %(cmd))
 
 # format ex_ants argument for intake
 if not args.ex_ants is None:
@@ -87,7 +111,3 @@ elif (len(pols) > 1):
 
     if args.plot or args.only_plot:
         wedge_utils.plot_multi_timeavg(npz_names)
-
-    
-
-
