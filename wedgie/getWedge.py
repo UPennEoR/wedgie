@@ -27,6 +27,8 @@ parser.add_argument("--time_avg", help="Toggle time averaging", action="store_tr
 parser.add_argument("--ex_ants", type=str, help='comma-delimited list of antennae to exclude.')
 parser.add_argument("--plot", help="toggle plotting the data in addition to saving as a .npz", action="store_true")
 parser.add_argument("--only_plot", help="call just the plot functions for filenames=npz name", action="store_true")
+parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
+parser.add_argument("--multi_delayavg", help="sfsdfsdff", action="store_true")
 args=parser.parse_args()
 
 pols = args.pol.split(",")
@@ -41,6 +43,14 @@ if args.only_plot and (len(pols) == 1 ):
             wedge_utils.plot_timeavg(filename)
         elif filename.split('.')[-2] == 'blavg':
             wedge_utils.plot_blavg(filename)
+
+if args.delay_avg and (len(pols) == 1 ):
+    for filename in args.filenames:
+        wedge_utils.fork2wedge(filename)
+
+if args.multi_delayavg and (len(pols) == 1 ):
+    for filename in args.filenames:    
+        wedge_utils.plot_multi_delayavg(filename)
 
 elif (not args.only_plot) and (len(pols) == 1):
     #make wedge
@@ -75,6 +85,8 @@ elif (len(pols) > 1):
 
     if args.plot or args.only_plot:
         wedge_utils.plot_multi_timeavg(npz_names)
+
+
 
     
 

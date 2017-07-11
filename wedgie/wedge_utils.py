@@ -301,21 +301,20 @@ def fork2wedge(npz_name):
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
     split = (len(wedgevalues[0,:])/2)
-    #print split
+
     wedgevalues2 = np.zeros((len(wedgevalues),len(delays)))
-    #wedgevalues2 = np.zeros((len(wedgevalues),512))
+
     print len(wedgevalues)
     print len(delays)
     for baselength in range(len(wedgevalues)):        
         for i in range(split):
             avg = ((wedgevalues[baselength,(split-1+i)]+wedgevalues[baselength,(split+i)])/2)
-            wedgevalues2[baselength][split-i] = avg   #513th value, axes 1 index = 512         
+            wedgevalues2[baselength][split-i] = avg         
     wedgevalues3 = wedgevalues2.T.T.T
-    #print wedgevalues2
+
                
     plot = plt.imshow(wedgevalues3, aspect='auto', interpolation='nearest',extent=[0,len(wedgevalues),d_start,d_end], vmin=-3.0, vmax=1.0)      
-    #plot = plt.imshow(wedgevalues2, aspect='auto', interpolation='nearest',extent=[d_start,d_end,len(wedgevalues),0], vmin=-3.0, vmax=1.0)      
-    #extent=[horizontal_min,horizontal_max,vertical_min,vertical_max]    
+   
     plt.xlabel("Baseline length (short to long)")
     plt.ylabel("Delay (ns)")
     cbar = plt.colorbar()
