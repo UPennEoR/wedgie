@@ -8,4 +8,4 @@ Requirements:
 - aipy
 - numpy
 - matplotlib
- 
+- astropy 

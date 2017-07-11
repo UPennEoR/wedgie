@@ -95,7 +95,6 @@ elif len(pols) == 1:
 
 elif len(pols) > 1:
     npz_names = []
-
     for pol in pols:
         #make a list of all filenames for each polarization
         filenames = []

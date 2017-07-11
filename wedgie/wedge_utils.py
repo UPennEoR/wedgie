@@ -7,6 +7,10 @@ import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy.constants as sc
 import aipy
+import gen_utils as gu
+import cosmo_utils as cu
+
+# Calfile-specific manipulations
 
 def calculate_baseline(antennae, pair):
     """
@@ -73,6 +77,8 @@ def get_baselines(calfile, ex_ants=[]):
             else:
                 baselines[baseline].append(pair)
     return baselines
+
+# wedge/pitchfork calculation methods
 
 def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     """
@@ -273,8 +279,8 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
     
     return [nameI, nameQ, nameU, nameV]
 
+# Plotting Routines
 def plot_blavg(npz_name, path='./'): 
-
     plot_data = np.load(npz_name)
 
     d_start = plot_data['dlys'][0]
@@ -357,7 +363,6 @@ def plot_multi_timeavg(npz_names, path='./'):
     plt.show()
 
 def fork2wedge(npz_name):
-
     plot_data = np.load(npz_name)
     delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
     d_start = plot_data['dlys'][0]
