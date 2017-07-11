@@ -6,7 +6,7 @@ comprised of subplots averaged over antennae of same baselengths.
 Arguments:
 -f path/to/FILENAME [path/to/FILENAME [...]]
 -c=CALFILE
---pol= [stokes], [xx] [xy] [yx] [yy]
+--pol=[stokes], [xx] [xy] [yx] [yy]
 -t
 -x=antenna,antenna,...
 -p
