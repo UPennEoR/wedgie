@@ -1,17 +1,27 @@
 """
-This code contains an importable function getWedge intended to be used on HERA
-telescope data.  It takes the delay transform across all visibilities and
-creates a wedge plot comprised of subplots averaged over antennae of same
-baselengths.
+This code contains an importable function getWedge intended to be used on HERA data.  
+It takes the delay transform across all visibilities and creates a wedge plot 
+comprised of subplots averaged over antennae of same baselengths.
+
+Arguments:
+-f path/to/FILENAME [path/to/FILENAME [...]]
+-c=CALFILE
+--pol= [stokes], [xx] [xy] [yx] [yy]
+-t
+-x=antenna,antenna,...
+-p
+-o
+-s=STEP
 
 It requires a HERA data filename string such as:
-    "zen.2457700.47314.xx.HH.uvcRR"
-It is reliant on Austin Fox Fortino's baseline_lengths.py
-Can be imported as a function or used in the terminal with argument filename.
+    "path/to/zen.2457700.47314.xx.HH.uvcRR"
+
+wedge_utils.py, and the calfile should be in the PYTHONPATH
 
 Co-Author: Paul Chichura <pchich@sas.upenn.edu>
 Co-Author: Amy Igarashi <igarashiamy@gmail.com>
-Date: 6/21/2017
+Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
+Date Created: 6/21/2017
 """
 
 import argparse
@@ -22,38 +32,42 @@ from pprint import pprint
 
 #get filename from command line argument
 parser = argparse.ArgumentParser()
-parser.add_argument('filenames', help='your HERA data file(s)', nargs='*')
-parser.add_argument('calfile', help='your calfile')
-parser.add_argument('pol', help='comma-delimited list of pols to plot for filenames')
-parser.add_argument('--time_avg', help='Toggle time averaging', action='store_true')
-parser.add_argument('--ex_ants', type=str, help='comma-delimited list of antennae to exclude.')
-parser.add_argument('--plot', help='toggle plotting the data in addition to saving as a .npz', action='store_true')
-parser.add_argument('--only_plot', help='call just the plot functions for filenames=npz name', action='store_true')
-parser.add_argument('--step', help='Toggle file stepping.', action='store')
+parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*')
+parser.add_argument('-c', '--calfile', help='Input the calfile to be used for analysis.')
+parser.add_argument('--pol', help='Input a comma-delimited list of polatizations to plot.')
+parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='store_true')
+parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
+parser.add_argument('-p', '--plot', help='Toggle plotting the data in addition to saving a .npz file.', action='store_true')
+parser.add_argument('-o', '--only_plot', help='Plot npz files and do no analysis.', action='store_true')
+parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store')
 args = parser.parse_args()
 
 pols = args.pol.split(",")
-
+  
 if not args.step is None:
-    step = int(args.step)
-    files = args.filenames
-    arg_new = [args.calfile, args.pol]
-
+    opts = ["-c " + args.calfile, "--pol " + args.pol]
     if args.time_avg:
-        arg_new.append("--time_avg")
+        opts.append("-t")
     if args.plot:
-        arg_new.append("--plot")
+        opts.append("-p")
     elif args.only_plot:
-        arg_new.append("--only_plot")
+        opts.append("-o")
     if not args.ex_ants is None:
-        arg_new.append("--ex_ants={}".format(args.ex_ants))
+        opts.append("-x={}".format(args.ex_ants))
 
-    for file_index in range(0, len(files), step):
-        cmd = files[file_index : file_index + step]
-        cmd.extend(arg_new)
-        cmd = " ".join(cmd)
+    files_all = [file for file in args.filenames if 'xx' in file]
+
+    step = int(args.step)
+    for file_index in range(0, len(files_all), step):
+        cmd = opts + ["-f"] + files_all[file_index : file_index + step]
+        
+        print "I just executed the following arguments:"
         pprint(cmd)
-        os.system("python2.7 getWedge.py %s" %(cmd))
+        
+        os.system("python2.7 getWedge.py {}".format(" ".join(cmd)))
+        
+        print
+    quit()
 
 # format ex_ants argument for intake
 if not args.ex_ants is None:
