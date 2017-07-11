@@ -294,8 +294,63 @@ def plot_multi_timeavg(npz_names):
     plt.tight_layout()
     plt.show()  
 
+def fork2wedge(npz_name):
 
+    plot_data = np.load(npz_name)
+    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
+    d_start = plot_data['dlys'][0]
+    d_end = plot_data['dlys'][-1]
+    split = (len(wedgevalues[0,:])/2)
+    #print split
+    wedgevalues2 = np.zeros((len(wedgevalues),len(delays)))
+    #wedgevalues2 = np.zeros((len(wedgevalues),512))
+    print len(wedgevalues)
+    print len(delays)
+    for baselength in range(len(wedgevalues)):        
+        for i in range(split):
+            avg = ((wedgevalues[baselength,(split-1+i)]+wedgevalues[baselength,(split+i)])/2)
+            wedgevalues2[baselength][split-i] = avg   #513th value, axes 1 index = 512         
+    wedgevalues3 = wedgevalues2.T.T.T
+    #print wedgevalues2
+               
+    plot = plt.imshow(wedgevalues3, aspect='auto', interpolation='nearest',extent=[0,len(wedgevalues),d_start,d_end], vmin=-3.0, vmax=1.0)      
+    #plot = plt.imshow(wedgevalues2, aspect='auto', interpolation='nearest',extent=[d_start,d_end,len(wedgevalues),0], vmin=-3.0, vmax=1.0)      
+    #extent=[horizontal_min,horizontal_max,vertical_min,vertical_max]    
+    plt.xlabel("Baseline length (short to long)")
+    plt.ylabel("Delay (ns)")
+    cbar = plt.colorbar()
+    cbar.set_label("log10((mK)^2)")
+    plt.xlim((0,len(wedgevalues)))
+    plt.ylim(0,450)
+    plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
 
+    #calculate light travel time for each baselength
+    light_times = []
+    for length in plot_data['bls']:
+        light_times.append(length/sc.c*10**9)
+
+    #plot lines on plot using the light travel time
+    for i in range(len(light_times)):
+       y1, x1 = [light_times[i], light_times[i]], [i, i+1] 
+       y2, x2 = [-light_times[i], -light_times[i]], [i, i+1]
+       plt.plot(x1, y1, x2, y2, color = 'white')
+   
+    plt.savefig(npz_name[:-11]+'delayavg.png')
+    plt.show()
+
+def plot_multi_delayavg(npz_names):
+    #set up multiple plots
+    nplots = len(npz_names)
+    plt.figure(figsize=(4*nplots-3,3))
+    G = gridspec.GridSpec(3, 4*nplots-4)
+
+    #plot each plot in its own gridspec area   
+    for i in range(len(npz_names)):
+        axes = plt.subplot(G[:, (i*3):(i*3)+3])
+        plot_fork2wedge(npz_names[i], multi=True)
+
+    plt.tight_layout()
+    plt.show()  
 
 
 
