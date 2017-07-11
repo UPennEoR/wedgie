@@ -401,7 +401,6 @@ def fork2wedge(npz_name):
 
 def plot_multi_delayavg(npz_names):
     #set up multiple plots
-    #XXX not quite done
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
     G = gridspec.GridSpec(3, 4*nplots-4)
