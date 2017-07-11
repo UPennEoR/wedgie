@@ -2,7 +2,6 @@
 Module for wedge-creation methods
 """
 import capo
-import sys
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
@@ -11,6 +10,8 @@ import aipy
 
 def calculate_baseline(antennae, pair):
     """
+    XXX This problem has been "solved" with numpy instead.
+
     The decimal module is necessary for keeping the number of decimal places small.
     Due to small imprecision, if more than 8 or 9 decimal places are used, 
     many baselines will be calculated that are within ~1 nanometer to ~1 picometer of each other.
@@ -125,12 +126,17 @@ def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
     return npz_name
 
-def wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
+def wedge_timeavg(filenames, pol, calfile, ex_ants=[], stokes=[]):
     """
     Plots wedges per baseline length, averaged over baselines and time
+    if stokes is specified, then it should be of form [t, d, f]
     """
-    #get data from file
-    t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
+    if len(stokes):
+        #label given data if provided
+        t,d,f = stokes[0], stokes[1], stokes[2]
+    else: 
+        #get data from file
+        t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
     
     #stores vis^2 for each baselength averaged over time
     wedgeslices = []
@@ -209,11 +215,65 @@ def wedge_timeavg(filenames, pol, calfile, ex_ants=[]):
     #save filedata as npz
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
     fn1, fn2 = (filenames[0].split('/')[-1]).split('.'), (filenames[-1].split('/')[-1]).split('.')
-    npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+fn1[3]+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
+    npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+pol+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
     return npz_name
+
+def wedge_stokes(filenames, calfile, ex_ants=[]):
+    """
+    calls wedge_timeavg for each stokes parameter
+    assumes filenames is a list of lists separated by pol:
+        [[xx files],[xy files],[yx files],[yy files]]
+    """
     
-def plot_blavg(npz_name): 
+    txx,dxx,fxx = capo.miriad.read_files(filenames[0],antstr='cross',polstr='xx')
+    txy,dxy,fxy = capo.miriad.read_files(filenames[1],antstr='cross',polstr='xy')
+    tyx,dyx,fyx = capo.miriad.read_files(filenames[2],antstr='cross',polstr='yx')
+    tyy,dyy,fyy = capo.miriad.read_files(filenames[3],antstr='cross',polstr='yy')
+    
+    #calculate I (VI = Vxx + Vyy)
+    tI = txx
+    dI = {}
+    fI = {}
+    for key in dxx.keys():
+        dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
+        fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
+    nameI = wedge_timeavg(filenames[0], 'I', calfile, ex_ants, stokes=[tI, dI, fI])
+    print 'Stokes I completed'
+
+    #calculate Q (VQ = Vxx - Vyy)
+    tQ = txx
+    dQ = {}
+    fQ = {}
+    for key in dxx.keys():
+        dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
+        fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
+    nameQ = wedge_timeavg(filenames[0], 'Q', calfile, ex_ants, stokes=[tQ, dQ, fQ])
+    print 'Stokes Q completed'
+    
+    #calculate U (VU = Vxy + Vyx)
+    tU = txy
+    dU = {}
+    fU = {}
+    for key in dxy.keys():
+        dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
+        fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
+    nameU = wedge_timeavg(filenames[2], 'U', calfile, ex_ants, stokes=[tU, dU, fU])
+    print 'Stokes U completed'
+    
+    #calculate V (VV = -i*Vxy + i*Vyx)
+    tV = txy
+    dV = {}
+    fV = {}
+    for key in dxy.keys():
+        dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
+        fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
+    nameV = wedge_timeavg(filenames[2], 'V', calfile, ex_ants, stokes=[tV, dV, fV])
+    print 'Stokes V completed'
+    
+    return [nameI, nameQ, nameU, nameV]
+
+def plot_blavg(npz_name, path='./'): 
 
     plot_data = np.load(npz_name)
 
@@ -248,10 +308,10 @@ def plot_blavg(npz_name):
     #scale x axis to the significant information
     axarr[0].set_xlim(-450,450)
 
+    plt.savefig(path + npz_name[:-3] + 'png')
     plt.show()
 
-def plot_timeavg(npz_name, multi=False):
-
+def plot_timeavg(npz_name, path='./', multi=False):
     plot_data = np.load(npz_name)
     
     d_start = plot_data['dlys'][0]
@@ -277,10 +337,11 @@ def plot_timeavg(npz_name, multi=False):
     
     if multi:
         return
-    plt.savefig(npz_name[:-3]+'png')
-    plt.show()
+    else:
+        plt.savefig(path + npz_name[:-3] + 'png')
+        plt.show()
 
-def plot_multi_timeavg(npz_names):
+def plot_multi_timeavg(npz_names, path='./'):
     #set up multiple plots
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
@@ -289,10 +350,11 @@ def plot_multi_timeavg(npz_names):
     #plot each plot in its own gridspec area   
     for i in range(len(npz_names)):
         axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        plot_timeavg(npz_names[i], multi=True)
+        plot_timeavg(npz_names[i], path, multi=True)
 
     plt.tight_layout()
-    plt.show()  
+    plt.savefig(path + npz_names[0][:-3] + "multi.png")
+    plt.show()
 
 def fork2wedge(npz_name):
 
@@ -339,6 +401,7 @@ def fork2wedge(npz_name):
 
 def plot_multi_delayavg(npz_names):
     #set up multiple plots
+    #XXX not quite done
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
     G = gridspec.GridSpec(3, 4*nplots-4)
@@ -350,6 +413,3 @@ def plot_multi_delayavg(npz_names):
 
     plt.tight_layout()
     plt.show()  
-
-
-
