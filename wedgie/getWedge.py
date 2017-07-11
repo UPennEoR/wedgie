@@ -26,20 +26,16 @@ import argparse, wedge_utils, os, pprint
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
 parser.add_argument('-c', '--calfile', help='Input the calfile to be used for analysis.', required=True)
-parser.add_argument('--pol', help='Input a comma-delimited list of polatizations to plot.', required=True)
+parser.add_argument('-p', help='Input a comma-delimited list of polatizations to plot.', required=True)
 parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='store_true')
 parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
 parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store')
 args = parser.parse_args()
 
 if not args.step is None:
-    opts = ["-c " + args.calfile, "--pol " + args.pol]
+    opts = ["-c " + args.calfile, "-p " + args.pol]
     if args.time_avg:
         opts.append("-t")
-    if args.plot:
-        opts.append("-p")
-    elif args.only_plot:
-        opts.append("-o")
     if not args.ex_ants is None:
         opts.append("-x={}".format(args.ex_ants))
 
