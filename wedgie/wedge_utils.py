@@ -2,7 +2,6 @@
 Module for wedge-creation methods
 """
 import capo
-import sys
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
@@ -11,6 +10,8 @@ import aipy
 
 def calculate_baseline(antennae, pair):
     """
+    XXX This problem has been "solved" with numpy instead.
+
     The decimal module is necessary for keeping the number of decimal places small.
     Due to small imprecision, if more than 8 or 9 decimal places are used, 
     many baselines will be calculated that are within ~1 nanometer to ~1 picometer of each other.
@@ -271,9 +272,8 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
     print 'Stokes V completed'
     
     return [nameI, nameQ, nameU, nameV]
-    
 
-def plot_blavg(npz_name): 
+def plot_blavg(npz_name, path='./'): 
 
     plot_data = np.load(npz_name)
 
@@ -308,10 +308,10 @@ def plot_blavg(npz_name):
     #scale x axis to the significant information
     axarr[0].set_xlim(-450,450)
 
+    plt.savefig(path + npz_name[:-3] + 'png')
     plt.show()
 
-def plot_timeavg(npz_name, multi=False):
-
+def plot_timeavg(npz_name, path='./', multi=False):
     plot_data = np.load(npz_name)
     
     d_start = plot_data['dlys'][0]
@@ -337,10 +337,10 @@ def plot_timeavg(npz_name, multi=False):
     
     if multi:
         return
-    plt.savefig(npz_name[:-3]+'png')
+    plt.savefig(path + npz_name[:-3] + 'png')
     plt.show()
 
-def plot_multi_timeavg(npz_names):
+def plot_multi_timeavg(npz_names, path='./'):
     #set up multiple plots
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
@@ -349,14 +349,8 @@ def plot_multi_timeavg(npz_names):
     #plot each plot in its own gridspec area   
     for i in range(len(npz_names)):
         axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        plot_timeavg(npz_names[i], multi=True)
+        plot_timeavg(npz_names[i], path, multi=True)
 
     plt.tight_layout()
-    plt.savefig(npz_names[0][:-3] + "multi.png")
+    plt.savefig(path + npz_names[0][:-3] + "multi.png")
     plt.show()  
-
-
-
-
-
-
