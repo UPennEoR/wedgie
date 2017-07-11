@@ -337,8 +337,9 @@ def plot_timeavg(npz_name, path='./', multi=False):
     
     if multi:
         return
-    plt.savefig(path + npz_name[:-3] + 'png')
-    plt.show()
+    else:
+        plt.savefig(path + npz_name[:-3] + 'png')
+        plt.show()
 
 def plot_multi_timeavg(npz_names, path='./'):
     #set up multiple plots

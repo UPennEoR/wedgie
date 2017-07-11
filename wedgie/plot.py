@@ -13,12 +13,12 @@ parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplie
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 args = parser.parse_args()
 
-if args.plot:
+if args.single_plot:
     for filename in args.filenames:
         if filename.split('.')[-2] == 'timeavg':
-            wedge_utils.plot_timeavg(filename, args.save_path)
+            wedge_utils.plot_timeavg(filename, args.path)
         elif filename.split('.')[-2] == 'blavg':
-            wedge_utils.plot_blavg(filename, args.save_path)
+            wedge_utils.plot_blavg(filename, args.path)
 
 elif args.multi_plot:
-    wedge_utils.plot_multi_timeavg(args.filenames, args.save_path)
+    wedge_utils.plot_multi_timeavg(args.filenames, args.path)

@@ -9,8 +9,6 @@ Arguments:
 --pol=[stokes], [xx] [xy] [yx] [yy]
 -t
 -x=antenna,antenna,...
--p
--o
 -s=STEP
 
 It requires a HERA data filename string such as:
@@ -87,6 +85,7 @@ elif len(pols) == 1:
         npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
     else:
         npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+
 elif len(pols) > 1:
     npz_names = []
     for pol in pols:
