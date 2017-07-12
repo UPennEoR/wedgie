@@ -17,7 +17,7 @@ Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
 Created: June 21, 2017
 Last Updated: July 11, 2017
 """
-import argparse, wedge_utils, os, pprint
+import argparse, wedge_utils, os, pprint, threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
@@ -29,18 +29,26 @@ parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store'
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 parser.add_argument("--multi_delayavg", help="sfsdfsdff", action="store_true")
 args = parser.parse_args()
-
+history = {
+    'filenames': args.filenames, 
+    'calfile': args.calfile, 
+    'pol': args.pol, 
+    'time_avg': args.time_avg, 
+    'ex_ants': args.ex_ants, 
+    'step': args.step
+    }
+    
 if not args.step is None:
-    opts = ["-c " + args.calfile, "-p " + args.pol]
-    if args.time_avg:
+    opts = ["-c " + args_calfile, "-p " + args_pol]
+    if args_time_avg:
         opts.append("-t")
-    if not args.ex_ants is None:
-        opts.append("-x={}".format(args.ex_ants))
+    if not args_ex_ants is None:
+        opts.append("-x={}".format(args_ex_ants))
 
-    files_all = [file for file in args.filenames if 'xx' in file]
+    files_all = [file for file in args_filenames if 'xx' in file]
 
-    for file_index in range(0, len(files_all), args.step):
-        cmd = opts + ["-f"] + files_all[file_index : file_index + args.step]
+    for file_index in range(0, len(files_all), args_step):
+        cmd = opts + ["-f"] + files_all[file_index : file_index + args_step]
         
         print "I just executed the following arguments:"
         pprint.pprint(cmd)
@@ -71,7 +79,7 @@ if pols == ['stokes']:
                 pol_filenames.append(new_filename)
         filenames.append(pol_filenames)
     #calculate and get the names of the npz files
-    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], ex_ants_list)
+    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], ex_ants_list, history)
 
 #XXX need to keep npz funcs here, move plotting to plotWedge.py
 #if args.delay_avg and (len(pols) == 1 ):
@@ -84,9 +92,9 @@ if pols == ['stokes']:
 
 elif len(pols) == 1:
     if args.time_avg:
-        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list, history)
     else:
-        npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+        npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list, history)
 
 elif len(pols) > 1:
     npz_names = []
@@ -100,4 +108,4 @@ elif len(pols) > 1:
             #append it if it's not already there
             if not any(new_filename in s for s in filenames):
                 filenames.append(new_filename)
-        npz_names.append(wedge_utils.wedge_timeavg(filenames, pol, args.calfile.split('.')[0], ex_ants_list))
+        npz_names.append(wedge_utils.wedge_timeavg(filenames, pol, args.calfile.split('.')[0], ex_ants_list, history))

@@ -12,14 +12,36 @@ Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
 Created: June 27, 2017
 Last Updated: July 11, 2017
 """
-import capo
+import capo, aipy, os, pprint
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy.constants as sc
-import aipy
 import gen_utils as gu
 import cosmo_utils as cu
+
+def in_out_avg(npz_name):
+    plot_data = np.load(npz_name)
+
+    light_times = []
+    for length in plot_data['bls']:
+        light_times.append(length / (sc.c * (10**9)))
+
+    total_in, total_out = 0, 0
+    total_in_count, total_out_count = 0, 0
+    for i in range(len(plot_data['bls'])):
+        for index, delay in enumerate(plot_data[dlys]):
+            if abs(delay) >= light_times[i]:
+                total_out += plot_data['wdgslc'][i][index]
+                total_out_count += 1
+            else:
+                total_in += plot_data['wdgslc'][i][index]
+                total_in_count += 1
+
+    avg_in = total_in / total_in_count
+    avg_out = total_out / total_out_count
+
+    return (avg_in, avg_out)
 
 # Calfile-specific manipulations
 def calculate_baseline(antennae, pair):
@@ -84,7 +106,7 @@ def get_baselines(calfile, ex_ants=[]):
     return baselines
 
 # wedge/pitchfork calculation methods
-def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
+def wedge_blavg(filenames, pol, calfile, ex_ants=[], history):
     """
     Plots wedges per baseline length, averaged over baselines.
     Remember to not include the ".py" in the name of the calfile
@@ -133,10 +155,10 @@ def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
     fn1, fn2 = filenames[0].split('.'), filenames[-1].split('.')
     npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+fn1[3]+'.'+fn1[4]+'.'+fn1[5]+'.blavg.npz'
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
     return npz_name
 
-def wedge_timeavg(filenames, pol, calfile, ex_ants=[], stokes=[]):
+def wedge_timeavg(filenames, pol, calfile, ex_ants=[], stokes=[], history):
     """
     Plots wedges per baseline length, averaged over baselines and time
     if stokes is specified, then it should be of form [t, d, f]
@@ -226,10 +248,10 @@ def wedge_timeavg(filenames, pol, calfile, ex_ants=[], stokes=[]):
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
     fn1, fn2 = (filenames[0].split('/')[-1]).split('.'), (filenames[-1].split('/')[-1]).split('.')
     npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+pol+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths)
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
     return npz_name
 
-def wedge_stokes(filenames, calfile, ex_ants=[]):
+def wedge_stokes(filenames, calfile, ex_ants=[], history):
     """
     calls wedge_timeavg for each stokes parameter
     assumes filenames is a list of lists separated by pol:
@@ -248,7 +270,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
     for key in dxx.keys():
         dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
         fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
-    nameI = wedge_timeavg(filenames[0], 'I', calfile, ex_ants, stokes=[tI, dI, fI])
+    nameI = wedge_timeavg(filenames[0], 'I', calfile, ex_ants, stokes=[tI, dI, fI], history)
     print 'Stokes I completed'
 
     #calculate Q (VQ = Vxx - Vyy)
@@ -258,7 +280,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
     for key in dxx.keys():
         dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
         fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
-    nameQ = wedge_timeavg(filenames[0], 'Q', calfile, ex_ants, stokes=[tQ, dQ, fQ])
+    nameQ = wedge_timeavg(filenames[0], 'Q', calfile, ex_ants, stokes=[tQ, dQ, fQ], history)
     print 'Stokes Q completed'
     
     #calculate U (VU = Vxy + Vyx)
@@ -268,7 +290,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
     for key in dxy.keys():
         dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
         fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
-    nameU = wedge_timeavg(filenames[2], 'U', calfile, ex_ants, stokes=[tU, dU, fU])
+    nameU = wedge_timeavg(filenames[2], 'U', calfile, ex_ants, stokes=[tU, dU, fU], history)
     print 'Stokes U completed'
     
     #calculate V (VV = -i*Vxy + i*Vyx)
@@ -278,7 +300,7 @@ def wedge_stokes(filenames, calfile, ex_ants=[]):
     for key in dxy.keys():
         dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
-    nameV = wedge_timeavg(filenames[2], 'V', calfile, ex_ants, stokes=[tV, dV, fV])
+    nameV = wedge_timeavg(filenames[2], 'V', calfile, ex_ants, stokes=[tV, dV, fV], history)
     print 'Stokes V completed'
     
     return [nameI, nameQ, nameU, nameV]
