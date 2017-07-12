@@ -1,5 +1,12 @@
 """
-Module for wedge-creation methods
+Module for Wedge creation functions from HERA data. See getWedge.py and plotWedge.py 
+for execution of these functions.
+
+Co-Author: Paul Chichura <pchich@sas.upenn.edu>
+Co-Author: Amy Igarashi <igarashiamy@gmail.com>
+Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
+Created: June 27, 2017
+Last Updated: July 11, 2017
 """
 import capo
 import matplotlib.pyplot as plt
@@ -11,7 +18,6 @@ import gen_utils as gu
 import cosmo_utils as cu
 
 # Calfile-specific manipulations
-
 def calculate_baseline(antennae, pair):
     """
     XXX This problem has been "solved" with numpy instead.
@@ -79,7 +85,6 @@ def get_baselines(calfile, ex_ants=[]):
     return baselines
 
 # wedge/pitchfork calculation methods
-
 def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     """
     Plots wedges per baseline length, averaged over baselines.

@@ -1,7 +1,9 @@
 """
 This program compliments getWedge.py by being able to plot the npz files generated from getWedge.py.
 
-Author: Austin Fox Fortino ,fortino@sas.upenn.edu
+Author: Austin Fox Fortino <fortino@sas.upenn.edu>
+Created: July 11, 2017
+Last Updated: July 11, 2017
 """
 
 import argparse, wedge_utils, os, pprint

@@ -1,25 +1,21 @@
 """
-This code contains an importable function getWedge intended to be used on HERA data.  
-It takes the delay transform across all visibilities and creates a wedge plot 
-comprised of subplots averaged over antennae of same baselengths.
-
-Arguments:
--f path/to/FILENAME [path/to/FILENAME [...]]
--c=CALFILE
---pol=[stokes], [xx] [xy] [yx] [yy]
--t
--x=antenna,antenna,...
--s=STEP
+This script is designed to determine, based on user input, what functions to call 
+from wedge_utils.py.
 
 It requires a HERA data filename string such as:
     "path/to/zen.2457700.47314.xx.HH.uvcRR"
 
 wedge_utils.py, and the calfile should be in the PYTHONPATH
 
+Command line format example:
+$ python2.7 getWedge.py -f path/to/file path/to/file -c=hsa7458_v001.py --pol=xx,xy,yx,yy 
+-t -x=20,9 -s=3
+
 Co-Author: Paul Chichura <pchich@sas.upenn.edu>
 Co-Author: Amy Igarashi <igarashiamy@gmail.com>
 Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
-Date Created: 6/21/2017
+Created: June 21, 2017
+Last Updated: July 11, 2017
 """
 import argparse, wedge_utils, os, pprint
 
