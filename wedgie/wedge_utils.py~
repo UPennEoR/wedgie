@@ -365,7 +365,7 @@ def plot_multi_timeavg(npz_names, path='./'):
 def wedge_delayavg(npz_name):
 
     plot_data = np.load(npz_name)
-    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
+    delays, wedgevalues = plot_data['dlys'], plot_data['wdgslc']
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
     split = (len(wedgevalues[0,:])/2)
@@ -378,15 +378,14 @@ def wedge_delayavg(npz_name):
             wedgevalues2[baselength][split-i] = avg         
     delayavg_wedgevalues = wedgevalues2.T.T.T
     npz_delayavg = (npz_name[:-11] + 'delayavg.npz')
-    np.savez(npz_delayavg, wdgslc=delayavg_wedgevalues, dlys=delays, bls=baselines)
+    np.savez(npz_delayavg, wdgslc=delayavg_wedgevalues, dlys=delays)
                                 #saving to longer arrary fml??? idk
-    print "got here!!!"
     return npz_delayavg
 
-def plot_delayavg(npz_delayavg):
+def plot_delayavg(npz_delayavg) 
     
     plot_data = np.load(npz_delayavg)
-    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
+    delays, wedgevalues = plot_data['dlys'], plot_data['wdgslc']
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
     plot = plt.imshow(wedgevalues, aspect='auto', interpolation='nearest',extent=[0,len(npz_delayavg),d_start,d_end], vmin=-3.0, vmax=1.0)      
@@ -396,9 +395,9 @@ def plot_delayavg(npz_delayavg):
     plt.ylabel("Delay (ns)")
     cbar = plt.colorbar()
     cbar.set_label("log10((mK)^2)")
-    plt.xlim((0,len(baselines)))
+    plt.xlim((0,len(wedgevalues)))
     plt.ylim(0,450)
-    plt.title(npz_delayavg.split('.')[1]+'.'+npz_delayavg.split('.')[2]+'.'+npz_delayavg.split('.')[3])
+    plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
 
     #calculate light travel time for each baselength
     light_times = []
@@ -410,9 +409,8 @@ def plot_delayavg(npz_delayavg):
        y1, x1 = [light_times[i], light_times[i]], [i, i+1] 
        y2, x2 = [-light_times[i], -light_times[i]], [i, i+1]
        plt.plot(x1, y1, x2, y2, color = 'white')
-    
-    print "got here1"   
-    plt.savefig(npz_delayavg[:-12]+'delayavg.png')
+   
+    plt.savefig(npz_name[:-11]+'delayavg.png')
     plt.show()
 
 def plot_multi_delayavg(npz_names):

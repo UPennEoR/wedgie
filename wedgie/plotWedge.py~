@@ -11,12 +11,7 @@ parser.add_argument('-f', '--filenames', help='Input a list of filenames to be a
 parser.add_argument('-p', '--path', help='Path to save destination for png files.', default='./')
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
-parser.add_argument('-d', '--delay_plot', help='Plot a single plot from supplied delayavg npz file', action='store_true')
 args = parser.parse_args()
-
-if args.delay_plot:
-    for filename in args.filenames:
-        wedge_utils.plot_delayavg(filename)
 
 if args.single_plot:
     for filename in args.filenames:
