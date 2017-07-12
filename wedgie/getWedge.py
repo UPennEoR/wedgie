@@ -25,7 +25,7 @@ parser.add_argument('-c', '--calfile', help='Input the calfile to be used for an
 parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatizations to plot.', required=True)
 parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='store_true')
 parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
-parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store')
+parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store', type=int)
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 parser.add_argument("--multi_delayavg", help="sfsdfsdff", action="store_true")
 args = parser.parse_args()
@@ -39,9 +39,8 @@ if not args.step is None:
 
     files_all = [file for file in args.filenames if 'xx' in file]
 
-    step = int(args.step)
-    for file_index in range(0, len(files_all), step):
-        cmd = opts + ["-f"] + files_all[file_index : file_index + step]
+    for file_index in range(0, len(files_all), args.step):
+        cmd = opts + ["-f"] + files_all[file_index : file_index + args.step]
         
         print "I just executed the following arguments:"
         pprint.pprint(cmd)
