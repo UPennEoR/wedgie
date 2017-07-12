@@ -1,5 +1,16 @@
 """
-Module for wedge-creation methods
+Module for Wedge creation functions from HERA data. See getWedge.py and plotWedge.py 
+for execution of these functions. 
+
+This code contains an importable function getWedge intended to be used on HERA data.  
+It takes the delay transform across all visibilities and creates a wedge plot 
+comprised of subplots averaged over antennae of same baselengths.
+
+Co-Author: Paul Chichura <pchich@sas.upenn.edu>
+Co-Author: Amy Igarashi <igarashiamy@gmail.com>
+Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
+Created: June 27, 2017
+Last Updated: July 11, 2017
 """
 import capo
 import matplotlib.pyplot as plt
@@ -11,10 +22,9 @@ import gen_utils as gu
 import cosmo_utils as cu
 
 # Calfile-specific manipulations
-
 def calculate_baseline(antennae, pair):
     """
-    XXX This problem has been "solved" with numpy instead.
+    XXX This problem has been solved with numpy instead.
 
     The decimal module is necessary for keeping the number of decimal places small.
     Due to small imprecision, if more than 8 or 9 decimal places are used, 
@@ -47,18 +57,13 @@ def get_baselines(calfile, ex_ants=[]):
     determines the baseline and places them in the dictionary.
     excludes antennae with z-position < 0 or if in ex_ants list
     """
-    
     baselines = {}
     for antenna_i in antennae:
-        if antennae[antenna_i]['top_z'] < 0.:
-            continue
-        if antenna_i in ex_ants:
+        if (antennae[antenna_i]['top_z'] < 0.) or (antenna_i in ex_ants):
             continue
         
         for antenna_j in antennae:
-            if antennae[antenna_j]['top_z'] < 0.:
-                continue
-            if antenna_j in ex_ants:
+            if (antennae[antenna_j]['top_z'] < 0.) or (antenna_j in ex_ants):
                 continue
 
             if antenna_i == antenna_j:
@@ -70,16 +75,15 @@ def get_baselines(calfile, ex_ants=[]):
 
             baseline = calculate_baseline(antennae, pair)
 
-            if (baseline not in baselines):
+            if baseline not in baselines:
                 baselines[baseline] = [pair]
-            elif (pair in baselines[baseline]):
+            elif pair in baselines[baseline]:
                 continue
             else:
                 baselines[baseline].append(pair)
     return baselines
 
 # wedge/pitchfork calculation methods
-
 def wedge_blavg(filenames, pol, calfile, ex_ants=[]):
     """
     Plots wedges per baseline length, averaged over baselines.

@@ -1,9 +1,10 @@
 """
 This program compliments getWedge.py by being able to plot the npz files generated from getWedge.py.
 
-Author: Austin Fox Fortino ,fortino@sas.upenn.edu
+Author: Austin Fox Fortino <fortino@sas.upenn.edu>
+Created: July 11, 2017
+Last Updated: July 11, 2017
 """
-
 import argparse, wedge_utils, os, pprint
 
 parser = argparse.ArgumentParser()
@@ -20,9 +21,9 @@ if args.delay_plot:
 
 if args.single_plot:
     for filename in args.filenames:
-        if filename.split('.')[-2] == 'timeavg':
+        if 'timeavg' in filename:
             wedge_utils.plot_timeavg(filename, args.path)
-        elif filename.split('.')[-2] == 'blavg':
+        elif 'blavg' in filename:
             wedge_utils.plot_blavg(filename, args.path)
 
 elif args.multi_plot:
