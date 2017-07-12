@@ -1,21 +1,25 @@
 """
-This script is designed to determine, based on user input, what functions to call 
-from wedge_utils.py.
+This code contains an importable function getWedge intended to be used on HERA data.  
+It takes the delay transform across all visibilities and creates a wedge plot 
+comprised of subplots averaged over antennae of same baselengths.
+
+Arguments:
+-f path/to/FILENAME [path/to/FILENAME [...]]
+-c=CALFILE
+--pol=[stokes], [xx] [xy] [yx] [yy]
+-t
+-x=antenna,antenna,...
+-s=STEP
 
 It requires a HERA data filename string such as:
     "path/to/zen.2457700.47314.xx.HH.uvcRR"
 
 wedge_utils.py, and the calfile should be in the PYTHONPATH
 
-Command line format example:
-$ python2.7 getWedge.py -f path/to/file path/to/file -c=hsa7458_v001.py --pol=xx,xy,yx,yy 
--t -x=20,9 -s=3
-
 Co-Author: Paul Chichura <pchich@sas.upenn.edu>
 Co-Author: Amy Igarashi <igarashiamy@gmail.com>
 Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
-Created: June 21, 2017
-Last Updated: July 11, 2017
+Date Created: 6/21/2017
 """
 import argparse, wedge_utils, os, pprint
 
@@ -25,7 +29,7 @@ parser.add_argument('-c', '--calfile', help='Input the calfile to be used for an
 parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatizations to plot.', required=True)
 parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='store_true')
 parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
-parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store', type=int)
+parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 parser.add_argument("--multi_delayavg", help="sfsdfsdff", action="store_true")
 args = parser.parse_args()
@@ -39,8 +43,9 @@ if not args.step is None:
 
     files_all = [file for file in args.filenames if 'xx' in file]
 
-    for file_index in range(0, len(files_all), args.step):
-        cmd = opts + ["-f"] + files_all[file_index : file_index + args.step]
+    step = int(args.step)
+    for file_index in range(0, len(files_all), step):
+        cmd = opts + ["-f"] + files_all[file_index : file_index + step]
         
         print "I just executed the following arguments:"
         pprint.pprint(cmd)
