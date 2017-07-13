@@ -420,11 +420,13 @@ def plot_multi_delayavg(npz_names):
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
     G = gridspec.GridSpec(3, 4*nplots-4)
-
+    print "fsadkf;sdf"
     #plot each plot in its own gridspec area   
     for i in range(len(npz_names)):
         axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        wedge_delayavg(npz_names[i], multi=True)
+        plot_delayavg(npz_names[i]) #, path, multi=True)
 
     plt.tight_layout()
+    #plt.savefig(path + npz_names[0][:-3] + "multi.png")
+
     plt.show()  

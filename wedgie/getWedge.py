@@ -31,7 +31,6 @@ parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='s
 parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
 parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
-parser.add_argument("--multi_delayavg", help="sfsdfsdff", action="store_true")
 args = parser.parse_args()
 
 if not args.step is None:
@@ -78,14 +77,9 @@ if pols == ['stokes']:
     #calculate and get the names of the npz files
     npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], ex_ants_list)
 
-#XXX need to keep npz funcs here, move plotting to plotWedge.py
 if args.delay_avg and (len(pols) == 1 ):
     for filename in args.filenames:
         wedge_utils.wedge_delayavg(filename)
-
-#if args.multi_delayavg and (len(pols) == 1 ):
-#    for filename in args.filenames:    
-#        wedge_utils.plot_multi_delayavg(filename)
 
 elif len(pols) == 1:
     if args.time_avg:
