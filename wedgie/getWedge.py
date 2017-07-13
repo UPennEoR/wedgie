@@ -21,7 +21,7 @@ Co-Author: Amy Igarashi <igarashiamy@gmail.com>
 Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
 Date Created: 6/21/2017
 """
-import argparse, wedge_utils, os, pprint
+import argparse, wedge_utils, os, pprint, threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
@@ -33,18 +33,20 @@ parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store'
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 
+
+
+
 if not args.step is None:
-    opts = ["-c " + args.calfile, "-p " + args.pol]
-    if args.time_avg:
+    opts = ["-c " + args_calfile, "-p " + args_pol]
+    if args_time_avg:
         opts.append("-t")
-    if not args.ex_ants is None:
-        opts.append("-x={}".format(args.ex_ants))
+    if not args_ex_ants is None:
+        opts.append("-x={}".format(args_ex_ants))
 
-    files_all = [file for file in args.filenames if 'xx' in file]
+    files_all = [file for file in args_filenames if 'xx' in file]
 
-    step = int(args.step)
-    for file_index in range(0, len(files_all), step):
-        cmd = opts + ["-f"] + files_all[file_index : file_index + step]
+    for file_index in range(0, len(files_all), args_step):
+        cmd = opts + ["-f"] + files_all[file_index : file_index + args_step]
         
         print "I just executed the following arguments:"
         pprint.pprint(cmd)
@@ -54,28 +56,43 @@ if not args.step is None:
         print
     quit()
 
-pols = args.pol.split(",")
+
+if args.pol == 'stokes':
+    pols = ['xx','xy','yx','yy']
+else:
+    pols = args.pol.split(",")
+
+filenames = []
+for pol in pols:
+    #make a list of all filenames for each polarization
+    pol_filenames = []
+    for filename in args.filenames:
+        #replace polarization in the filename with pol we want to see
+        filepol = filename.split('.')[-3]
+        new_filename = filename.split(filepol)[0]+pol+filename.split(filepol)[1]
+        #append it if it's not already there
+        if not any(new_filename in s for s in pol_filenames):
+            pol_filenames.append(new_filename)
+    filenames.append(pol_filenames)
+
+history = {
+    'filenames': filenames, 
+    'calfile': args.calfile, 
+    'pol': args.pol, 
+    'time_avg': args.time_avg, 
+    'ex_ants': args.ex_ants, 
+    'step': args.step
+    }
+
 
 if not args.ex_ants is None:
     ex_ants_list = map(int, args.ex_ants.split(','))
 else:
     ex_ants_list = []
 
-if pols == ['stokes']:
-    filenames = []
-    for pol in ['xx','xy','yx','yy']:
-        #make a list of all filenames for each polarization
-        pol_filenames = []
-        for filename in args.filenames:
-            #replace polarization in the filename with pol we want to see
-            filepol = filename.split('.')[-3]
-            new_filename = filename.split(filepol)[0]+pol+filename.split(filepol)[1]
-            #append it if it's not already there
-            if not any(new_filename in s for s in pol_filenames):
-                pol_filenames.append(new_filename)
-        filenames.append(pol_filenames)
+if args.pol == 'stokes':
     #calculate and get the names of the npz files
-    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], ex_ants_list)
+    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], history, ex_ants_list)
 
 if args.delay_avg and (len(pols) == 1 ):
     for filename in args.filenames:
@@ -83,20 +100,12 @@ if args.delay_avg and (len(pols) == 1 ):
 
 elif len(pols) == 1:
     if args.time_avg:
-        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], history, ex_ants_list)
     else:
-        npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], ex_ants_list)
+        npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], history, ex_ants_list)
 
 elif len(pols) > 1:
     npz_names = []
-    for pol in pols:
-        #make a list of all filenames for each polarization
-        filenames = []
-        for filename in args.filenames:
-            #replace polarization in the filename with pol we want to see
-            filepol = filename.split('.')[-3]
-            new_filename = filename.split(filepol)[0]+pol+filename.split(filepol)[1]
-            #append it if it's not already there
-            if not any(new_filename in s for s in filenames):
-                filenames.append(new_filename)
-        npz_names.append(wedge_utils.wedge_timeavg(filenames, pol, args.calfile.split('.')[0], ex_ants_list))
+
+    for i in range(len(pols)):
+        npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, ex_ants_list))

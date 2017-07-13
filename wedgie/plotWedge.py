@@ -3,17 +3,27 @@ This program compliments getWedge.py by being able to plot the npz files generat
 
 Author: Austin Fox Fortino ,fortino@sas.upenn.edu
 """
-
-import argparse, wedge_utils, os, pprint
+import argparse, wedge_utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
 parser.add_argument('-p', '--path', help='Path to save destination for png files.', default='./')
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
+parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
 parser.add_argument('-d', '--delay_plot', help='Plot a single plot from supplied delayavg npz file', action='store_true')
 parser.add_argument('-md','--multi_delayplot', help ='Plot multiple delay average plots', action='store_true')
+parser.add_argument('-o', '--plot_1D', help="Plot (optional: specified as comma delimited list) baselines' wedges on a 1D plot from supplied npz file", default=None, const='all', nargs='?', action='store')
+
 args = parser.parse_args()
+
+if args.plot_1D is not None:
+    if args.plot_1D == 'all':
+        baselines = []
+    else:
+        baselines = [int(x) for x in args.plot_1D.split(',')]
+    for filename in args.filenames:
+        wedge_utils.plot_1D(filename, baselines)
 
 if args.delay_plot:
     for filename in args.filenames:
@@ -32,3 +42,6 @@ if args.single_plot:
 
 elif args.multi_plot:
     wedge_utils.plot_multi_timeavg(args.filenames, args.path)
+
+elif args.avg_plot:
+    wedge_utils.plot_avgs(args.filenames)
