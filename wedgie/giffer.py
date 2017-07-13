@@ -1,11 +1,20 @@
-import imageio
-import glob
+import imageio, glob, argparse
 
-images = sorted(glob.glob("./*png"))
-gif = []
+parser = argparse.ArgumentParser()
+parser.add_argument('-f', '--files', help='Files to be giffed.', nargs='*', required=True)
+parser.add_argument('-s', '--save', help='Input path for save location.', default='./')
+parser.add_argument('-d', '--duration', help='Set duration of each from of gif in seconds.', default=2, type=float)
+args = parser.parse_args()
 
-for filename in images:
-    gif.append(imageio.imread(filename))
+images = sorted(glob.glob("{}".format("".join(args.files))))
+
+gif =[]
+for image in images:
+    gif.append(imageio.imread(image))
+
+start = images[0].split('/')[-1].split('.')[2]
+end = images[-1].split('/')[-1].split('.')[2]
+length = len(images)
  
-kargs = { 'duration': 1.5 } # in seconds
-imageio.mimsave("./all_day.gif", gif,**kargs)
+kargs = {'duration': args.duration} # in seconds
+imageio.mimsave("{}{}files__start{}__end{}.gif".format(args.save, length, start, end), gif,**kargs)
