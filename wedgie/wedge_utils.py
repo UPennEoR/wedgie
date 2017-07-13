@@ -477,3 +477,44 @@ def plot_multi_delayavg(npz_names):
 
     plt.tight_layout()
     plt.show()  
+
+def plot_1D(npz_name, baselines=[]):
+
+    """
+    Plots all baselines overlapped on a 1D plot.
+    If baselines is a specified argument (start indexing with baseline length #1),
+    then only plots the provided baselines.
+    """
+
+    plot_data = np.load(npz_name)
+
+    if len(baselines):
+	baselines = [i-1 for i in baselines]
+    else:
+	baselines = range(len(plot_data['wdgslc']))
+    
+    plt.figure(figsize=(12,6))
+    G = gridspec.GridSpec(2, 9)
+    
+    axes = plt.subplot(G[:,0:4])
+    for i in baselines:
+        plt.plot(plot_data['dlys'], plot_data['wdgslc'][i], label='bl len '+str(plot_data['bls'][i]))
+    plt.xlabel('Delay (ns)')
+    plt.ylabel('log10((mK)^2)')
+    plt.legend(loc='upper left')
+    
+    axes = plt.subplot(G[:,5:9])
+    for i in baselines:
+        plt.plot(plot_data['dlys'], plot_data['wdgslc'][i])
+    if len(baselines)==1:
+	light_time = plot_data['bls'][baselines[0]]/sc.c*10**9
+	plt.axvline(light_time, color='#d3d3d3', linestyle='--')
+	plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
+	plt.axvline(0, color='#d3d3d3', linestyle='--')
+    plt.xlim((-450,450))
+    
+    plt.xlabel('Delay (ns)')
+    plt.ylabel('log10((mK)^2)')
+    plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
+        
+    plt.show()

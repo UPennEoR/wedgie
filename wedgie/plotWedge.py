@@ -12,7 +12,16 @@ parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplie
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
 parser.add_argument('-d', '--delay_plot', help='Plot a single plot from supplied delayavg npz file', action='store_true')
+parser.add_argument('-o', '--plot_1D', help="Plot (optional: specified as comma delimited list) baselines' wedges on a 1D plot from supplied npz file", default=None, const='all', nargs='?', action='store')
 args = parser.parse_args()
+
+if args.plot_1D is not None:
+    if args.plot_1D == 'all':
+        baselines = []
+    else:
+        baselines = [int(x) for x in args.plot_1D.split(',')]
+    for filename in args.filenames:
+        wedge_utils.plot_1D(filename, baselines)
 
 if args.delay_plot:
     for filename in args.filenames:
