@@ -5,13 +5,14 @@ Author: Austin Fox Fortino <fortino@sas.upenn.edu>
 Created: July 11, 2017
 Last Updated: July 11, 2017
 """
-import argparse, wedge_utils, os, pprint
+import argparse, wedge_utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
 parser.add_argument('-p', '--path', help='Path to save destination for png files.', default='./')
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
+parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
 args = parser.parse_args()
 
 if args.single_plot:
@@ -23,3 +24,6 @@ if args.single_plot:
 
 elif args.multi_plot:
     wedge_utils.plot_multi_timeavg(args.filenames, args.path)
+
+elif args.avg_plot:
+    wedge_utils.plot_avgs(args.filenames)
