@@ -12,9 +12,10 @@ gif =[]
 for image in images:
     gif.append(imageio.imread(image))
 
+day = images[0].split('/')[-1].split('.')[1]
 start = images[0].split('/')[-1].split('.')[2]
 end = images[-1].split('/')[-1].split('.')[2]
 length = len(images)
  
 kargs = {'duration': args.duration} # in seconds
-imageio.mimsave("{}{}files__start{}__end{}.gif".format(args.save, length, start, end), gif,**kargs)
+imageio.mimsave("{}day{}__{}files__start{}__end{}.gif".format(args.save, day, length, start, end), gif,**kargs)
