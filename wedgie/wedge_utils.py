@@ -1,16 +1,5 @@
 """
-Module for Wedge creation functions from HERA data. See getWedge.py and plotWedge.py 
-for execution of these functions. 
-
-This code contains an importable function getWedge intended to be used on HERA data.  
-It takes the delay transform across all visibilities and creates a wedge plot 
-comprised of subplots averaged over antennae of same baselengths.
-
-Co-Author: Paul Chichura <pchich@sas.upenn.edu>
-Co-Author: Amy Igarashi <igarashiamy@gmail.com>
-Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
-Created: June 27, 2017
-Last Updated: July 11, 2017
+Module for wedge-creation methods
 """
 import capo, aipy, os, pprint
 import matplotlib.pyplot as plt
@@ -69,9 +58,10 @@ def plot_avgs(npz_names):
 
 
 # Calfile-specific manipulations
+
 def calculate_baseline(antennae, pair):
     """
-    XXX This problem has been solved with numpy instead.
+    XXX This problem has been "solved" with numpy instead.
 
     The decimal module is necessary for keeping the number of decimal places small.
     Due to small imprecision, if more than 8 or 9 decimal places are used, 
@@ -104,13 +94,18 @@ def get_baselines(calfile, ex_ants=[]):
     determines the baseline and places them in the dictionary.
     excludes antennae with z-position < 0 or if in ex_ants list
     """
+    
     baselines = {}
     for antenna_i in antennae:
-        if (antennae[antenna_i]['top_z'] < 0.) or (antenna_i in ex_ants):
+        if antennae[antenna_i]['top_z'] < 0.:
+            continue
+        if antenna_i in ex_ants:
             continue
         
         for antenna_j in antennae:
-            if (antennae[antenna_j]['top_z'] < 0.) or (antenna_j in ex_ants):
+            if antennae[antenna_j]['top_z'] < 0.:
+                continue
+            if antenna_j in ex_ants:
                 continue
 
             if antenna_i == antenna_j:
@@ -122,9 +117,9 @@ def get_baselines(calfile, ex_ants=[]):
 
             baseline = calculate_baseline(antennae, pair)
 
-            if baseline not in baselines:
+            if (baseline not in baselines):
                 baselines[baseline] = [pair]
-            elif pair in baselines[baseline]:
+            elif (pair in baselines[baseline]):
                 continue
             else:
                 baselines[baseline].append(pair)
@@ -416,7 +411,8 @@ def plot_multi_timeavg(npz_names, path='./'):
     plt.savefig(path + npz_names[0][:-3] + "multi.png")
     plt.show()
 
-def fork2wedge(npz_name):
+def wedge_delayavg(npz_name):
+
     plot_data = np.load(npz_name)
     delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
     d_start = plot_data['dlys'][0]
@@ -425,24 +421,33 @@ def fork2wedge(npz_name):
 
     wedgevalues2 = np.zeros((len(wedgevalues),len(delays)))
 
-    print len(wedgevalues)
-    print len(delays)
     for baselength in range(len(wedgevalues)):        
         for i in range(split):
             avg = ((wedgevalues[baselength,(split-1+i)]+wedgevalues[baselength,(split+i)])/2)
             wedgevalues2[baselength][split-i] = avg         
-    wedgevalues3 = wedgevalues2.T.T.T
+    delayavg_wedgevalues = wedgevalues2.T.T.T
+    npz_delayavg = (npz_name[:-11] + 'delayavg.npz')
+    np.savez(npz_delayavg, wdgslc=delayavg_wedgevalues, dlys=delays, bls=baselines)
+                                #saving to longer arrary fml??? idk
+    print "got here!!!"
+    return npz_delayavg
 
-               
-    plot = plt.imshow(wedgevalues3, aspect='auto', interpolation='nearest',extent=[0,len(wedgevalues),d_start,d_end], vmin=-3.0, vmax=1.0)      
+def plot_delayavg(npz_delayavg):
+    
+    plot_data = np.load(npz_delayavg)
+    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
+    d_start = plot_data['dlys'][0]
+    d_end = plot_data['dlys'][-1]
+    plot = plt.imshow(wedgevalues, aspect='auto', interpolation='nearest',extent=[0,len(npz_delayavg),d_start,d_end], vmin=-3.0, vmax=1.0)      
+    #plot = plt.imshow(npz_delayavg, aspect='auto', interpolation='nearest',extent=[0,len(wedgevalues),d_start,d_end], vmin=-3.0, vmax=1.0)
    
     plt.xlabel("Baseline length (short to long)")
     plt.ylabel("Delay (ns)")
     cbar = plt.colorbar()
     cbar.set_label("log10((mK)^2)")
-    plt.xlim((0,len(wedgevalues)))
+    plt.xlim((0,len(baselines)))
     plt.ylim(0,450)
-    plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
+    plt.title(npz_delayavg.split('.')[1]+'.'+npz_delayavg.split('.')[2]+'.'+npz_delayavg.split('.')[3])
 
     #calculate light travel time for each baselength
     light_times = []
@@ -454,8 +459,9 @@ def fork2wedge(npz_name):
        y1, x1 = [light_times[i], light_times[i]], [i, i+1] 
        y2, x2 = [-light_times[i], -light_times[i]], [i, i+1]
        plt.plot(x1, y1, x2, y2, color = 'white')
-   
-    plt.savefig(npz_name[:-11]+'delayavg.png')
+    
+    print "got here1"   
+    plt.savefig(npz_delayavg[:-12]+'delayavg.png')
     plt.show()
 
 def plot_multi_delayavg(npz_names):
@@ -467,7 +473,7 @@ def plot_multi_delayavg(npz_names):
     #plot each plot in its own gridspec area   
     for i in range(len(npz_names)):
         axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        plot_fork2wedge(npz_names[i], multi=True)
+        wedge_delayavg(npz_names[i], multi=True)
 
     plt.tight_layout()
     plt.show()  

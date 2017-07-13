@@ -1,9 +1,7 @@
 """
 This program compliments getWedge.py by being able to plot the npz files generated from getWedge.py.
 
-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
-Created: July 11, 2017
-Last Updated: July 11, 2017
+Author: Austin Fox Fortino ,fortino@sas.upenn.edu
 """
 import argparse, wedge_utils
 
@@ -13,13 +11,18 @@ parser.add_argument('-p', '--path', help='Path to save destination for png files
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
+parser.add_argument('-d', '--delay_plot', help='Plot a single plot from supplied delayavg npz file', action='store_true')
 args = parser.parse_args()
+
+if args.delay_plot:
+    for filename in args.filenames:
+        wedge_utils.plot_delayavg(filename)
 
 if args.single_plot:
     for filename in args.filenames:
-        if 'timeavg' in filename:
+        if filename.split('.')[-2] == 'timeavg':
             wedge_utils.plot_timeavg(filename, args.path)
-        elif 'blavg' in filename:
+        elif filename.split('.')[-2] == 'blavg':
             wedge_utils.plot_blavg(filename, args.path)
 
 elif args.multi_plot:
