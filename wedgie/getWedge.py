@@ -24,21 +24,31 @@ Date Created: 6/21/2017
 import argparse, wedge_utils, os, pprint, threading, sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
-parser.add_argument('-c', '--calfile', help='Input the calfile to be used for analysis.', required=True)
-parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatizations to plot.', required=True)
-parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='store_true')
-parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
-parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store', type=int)
+parser.add_argument('-f', '--filenames', nargs='*', required=True, help='Input a list of filenames to be analyzed.')
+parser.add_argument('-c', '--calfile', default='hsa7458_v001', help='Input the calfile to be used for analysis.')
+parser.add_argument('-p', '--pol', default='stokes', help='Input a comma-delimited list of polatizations to plot.')
+parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time averaging.')
+parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
+parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
+parser.add_argument('-r', '--range', help='Supply a range of times throughout a day to process.')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 
+files = args.filenames[:]
+
+range_start = args.range.split('_')[0]
+range_end = args.range.split('_')[1]
+
+for index, file in enumerate(args.filenames[:]):
+    if file.split('.')[-4] == range_start:
+        del args.filenames[:index]
+    elif file.split('.')[-4] == range_end:
+        del args.filenames[index:]
+
 if not args.step is None:
-    wedge_utils.block_print()
-    wedge_utils.step(sys.argv, args.step, args.filenames)
-    wedge_utils.enable_print()
-    print "Stepping Algorithm Complete.\ngetWedge closing."
+    wedge_utils.step(sys.argv, args.step, args.filenames, files)
     quit()
+
 
 if args.pol == 'stokes':
     pols = ['xx','xy','yx','yy']
