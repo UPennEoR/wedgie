@@ -51,7 +51,7 @@ if not args.range == None:
 if not args.step is None:
     wedge_utils.step(sys.argv, args.step, files, args.filenames)
     quit()
-"""
+
 if args.pol == 'stokes':
     pols = ['xx','xy','yx','yy']
 else:
@@ -104,4 +104,3 @@ elif len(pols) > 1:
 
     for i in range(len(pols)):
         npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, ex_ants_list))
-"""
