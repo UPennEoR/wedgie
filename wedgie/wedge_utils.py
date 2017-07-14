@@ -9,23 +9,12 @@ import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
 
-# Disable Printing
-def block_print():
-    sys.stdout = open(os.devnull, 'w')
-
-# Restore Printing
-def enable_Print():
-    sys.stdout = sys.__stdout__
-
-def step(args, step, files):
-    # block_print()
-
-
+def step(args, step, files, files_old):
     files_xx = [file for file in files if 'xx' in file]
     num_files_xx = len(files_xx)
 
     for index, arg in enumerate(args[:]):
-        if  (arg in files) or (arg == '-f') or ('-s=' in arg):
+        if  (arg in files_old) or (arg == '-f') or ('-s=' in arg):
             args.remove(arg)
         elif arg == '-s':
             del args[index + 1]
@@ -34,22 +23,19 @@ def step(args, step, files):
     args.insert(0, 'python2.7')
 
     count = 1
-    for index in range(0, len(files_xx), step):
+    for index in range(0, num_files_xx, step):
         cmd = args + ['-f'] + files_xx[index : index + step]
-        cmd = " ".join(cmd)
 
-        print count % 3
         if (step <= 10) and (count % 3 != 0):
-            cmd += " &"
+            cmd += [" &"]
         elif (step <= 15) and (step >= 10) and (count % 2):
-            cmd += " &"
+            cmd += [" &"]
 
         pprint.pprint(cmd)
+        cmd = " ".join(cmd)
         os.system(cmd)
         count += 1
         print
-
-    # enable_Print()
     quit()
 
 def in_out_avg(npz_name):
