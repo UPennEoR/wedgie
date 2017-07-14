@@ -25,8 +25,8 @@ import argparse, wedge_utils, os, pprint, threading, sys
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', nargs='*', required=True, help='Input a list of filenames to be analyzed.')
-parser.add_argument('-c', '--calfile', default='hsa7458_v001', help='Input the calfile to be used for analysis.')
-parser.add_argument('-p', '--pol', default='stokes', help='Input a comma-delimited list of polatizations to plot.')
+parser.add_argument('-c', '--calfile', help='Input the calfile to be used for analysis.')
+parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatizations to plot.')
 parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time averaging.')
 parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
 parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
@@ -35,22 +35,25 @@ parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 parser.add_argument("--multi_delayavg", help="sfsdfsdff", action="store_true")
 args = parser.parse_args()
 
+
 files = args.filenames[:]
 
-range_start = args.range.split('_')[0]
-range_end = args.range.split('_')[1]
+if not args.range == None:
+    range_start = args.range.split('_')[0]
+    range_end = args.range.split('_')[1]
+    print range_start, range_end
 
-for index, file in enumerate(args.filenames[:]):
-    if file.split('.')[-4] == range_start:
-        del args.filenames[:index]
-    elif file.split('.')[-4] == range_end:
-        del args.filenames[index:]
+    for index, file in enumerate(args.filenames[:]):
+        if file.split('.')[-4] == range_start:
+            del args.filenames[:index]
+        elif file.split('.')[-4] == range_end:
+            del args.filenames[index:]
 
 if not args.step is None:
     wedge_utils.step(sys.argv, args.step, args.filenames, files)
     quit()
 
-
+"""
 if args.pol == 'stokes':
     pols = ['xx','xy','yx','yy']
 else:
@@ -108,3 +111,4 @@ elif len(pols) > 1:
 
     for i in range(len(pols)):
         npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, ex_ants_list))
+"""
