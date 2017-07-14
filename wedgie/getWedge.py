@@ -41,16 +41,17 @@ if not args.range == None:
     range_end = args.range.split('_')[1]
     print range_start, range_end
 
-    for index, file in enumerate(args.filenames[:]):
-        if file.split('.')[-4] == range_start:
-            del args.filenames[:index]
-        elif file.split('.')[-4] == range_end:
-            del args.filenames[index:]
+    for file in files[:]:
+        time = file.split('.')[-4]
+        if time < range_start:
+            files.remove(file)
+        elif time > range_end:
+            files.remove(file)
 
 if not args.step is None:
-    wedge_utils.step(sys.argv, args.step, args.filenames, files)
+    wedge_utils.step(sys.argv, args.step, files, args.filenames)
     quit()
-
+"""
 if args.pol == 'stokes':
     pols = ['xx','xy','yx','yy']
 else:
@@ -103,3 +104,4 @@ elif len(pols) > 1:
 
     for i in range(len(pols)):
         npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, ex_ants_list))
+"""

@@ -9,12 +9,12 @@ import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
 
-def step(args, step, files, files_old):
+def step(args, step, files, argfiles):
     files_xx = [file for file in files if 'xx' in file]
     num_files_xx = len(files_xx)
 
-    for index, arg in enumerate(args[:]):
-        if  (arg in files_old) or (arg == '-f') or ('-s=' in arg) or ('-r=' in arg):
+    for arg in args[:]:
+        if  (arg in argfiles) or (arg == '-f') or ('-s=' in arg) or ('-r=' in arg):
             args.remove(arg)
         elif (arg == '-s') or (arg == '-r'):
             del args[args.index(arg) + 1]
