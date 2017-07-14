@@ -1,13 +1,42 @@
 """
 Module for wedge-creation methods
 """
-import capo, aipy, os, pprint
+import capo, aipy, os, pprint, sys
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
+
+def step(args, step, files, argfiles):
+    files_xx = [file for file in files if 'xx' in file]
+    num_files_xx = len(files_xx)
+
+    for arg in args[:]:
+        if  (arg in argfiles) or (arg == '-f') or ('-s=' in arg) or ('-r=' in arg):
+            args.remove(arg)
+        elif (arg == '-s') or (arg == '-r'):
+            del args[args.index(arg) + 1]
+            args.remove(arg)
+
+    args.insert(0, 'python2.7')
+
+    count = 1
+    for index in range(0, num_files_xx, step):
+        cmd = args + ['-f'] + files_xx[index : index + step]
+
+        if (step <= 10) and (count % 3 != 0):
+            cmd += [" &"]
+        elif (step <= 15) and (step >= 10) and (count % 2):
+            cmd += [" &"]
+
+        pprint.pprint(cmd)
+        cmd = " ".join(cmd)
+        os.system(cmd)
+        count += 1
+        print
+    quit()
 
 def in_out_avg(npz_name):
     plot_data = np.load(npz_name)
@@ -280,8 +309,8 @@ def wedge_stokes(filenames, calfile, history, ex_ants=[]):
     """
     
     txx,dxx,fxx = capo.miriad.read_files(filenames[0],antstr='cross',polstr='xx')
-    # txy,dxy,fxy = capo.miriad.read_files(filenames[1],antstr='cross',polstr='xy')
-    # tyx,dyx,fyx = capo.miriad.read_files(filenames[2],antstr='cross',polstr='yx')
+    txy,dxy,fxy = capo.miriad.read_files(filenames[1],antstr='cross',polstr='xy')
+    tyx,dyx,fyx = capo.miriad.read_files(filenames[2],antstr='cross',polstr='yx')
     tyy,dyy,fyy = capo.miriad.read_files(filenames[3],antstr='cross',polstr='yy')
     
     #calculate I (VI = Vxx + Vyy)
@@ -294,7 +323,6 @@ def wedge_stokes(filenames, calfile, history, ex_ants=[]):
     nameI = wedge_timeavg(filenames[0], 'I', calfile, history, ex_ants, stokes=[tI, dI, fI])
     print 'Stokes I completed'
 
-    """
     #calculate Q (VQ = Vxx - Vyy)
     tQ = txx
     dQ = {}
@@ -324,9 +352,8 @@ def wedge_stokes(filenames, calfile, history, ex_ants=[]):
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
     nameV = wedge_timeavg(filenames[2], 'V', calfile, history, ex_ants, stokes=[tV, dV, fV])
     print 'Stokes V completed'
-    """
-    return [nameI]
-    # , nameQ, nameU, nameV]
+    
+    return [nameI, nameQ, nameU, nameV]
 
 # Plotting Routines
 def plot_blavg(npz_name, path='./'): 
@@ -408,7 +435,7 @@ def plot_multi_timeavg(npz_names, path='./'):
         plot_timeavg(npz_names[i], path, multi=True)
 
     plt.tight_layout()
-    plt.savefig(path + npz_names[0][:-3] + "multi.png")
+    plt.savefig(npz_names[0][:-3] + "multi.png")
     plt.show()
 
 def wedge_delayavg(npz_name):
