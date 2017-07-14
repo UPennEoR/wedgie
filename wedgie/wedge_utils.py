@@ -504,7 +504,8 @@ def plot_1D(npz_name, baselines=[]):
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
     plt.legend(loc='upper left')
-    
+    plt.ylim((-3.5,2.0)) 
+   
     axes = plt.subplot(G[:,5:9])
     for i in baselines:
         plt.plot(plot_data['dlys'], plot_data['wdgslc'][i])
@@ -514,9 +515,11 @@ def plot_1D(npz_name, baselines=[]):
 	plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
 	plt.axvline(0, color='#d3d3d3', linestyle='--')
     plt.xlim((-450,450))
+    plt.ylim((-3.5,2.0))
     
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
+    npz_name = npz_name.split('/')[-1]
     plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
         
     plt.show()
