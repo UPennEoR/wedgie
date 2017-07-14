@@ -34,7 +34,6 @@ parser.add_argument('-r', '--range', help='Supply a range of times throughout a 
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 
-
 files = args.filenames[:]
 
 if not args.range == None:
@@ -52,7 +51,6 @@ if not args.step is None:
     wedge_utils.step(sys.argv, args.step, args.filenames, files)
     quit()
 
-"""
 if args.pol == 'stokes':
     pols = ['xx','xy','yx','yy']
 else:
@@ -105,4 +103,3 @@ elif len(pols) > 1:
 
     for i in range(len(pols)):
         npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, ex_ants_list))
-"""
