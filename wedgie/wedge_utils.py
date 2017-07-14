@@ -14,10 +14,10 @@ def step(args, step, files, files_old):
     num_files_xx = len(files_xx)
 
     for index, arg in enumerate(args[:]):
-        if  (arg in files_old) or (arg == '-f') or ('-s=' in arg):
+        if  (arg in files_old) or (arg == '-f') or ('-s=' in arg) or ('-r=' in arg):
             args.remove(arg)
-        elif arg == '-s':
-            del args[index + 1]
+        elif (arg == '-s') or (arg == '-r'):
+            del args[args.index(arg) + 1]
             args.remove(arg)
 
     args.insert(0, 'python2.7')
