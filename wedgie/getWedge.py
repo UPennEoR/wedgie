@@ -21,41 +21,36 @@ Co-Author: Amy Igarashi <igarashiamy@gmail.com>
 Co-Author: Austin Fox Fortino <fortino@sas.upenn.edu>
 Date Created: 6/21/2017
 """
-import argparse, wedge_utils, os, pprint, threading
+import argparse, wedge_utils, os, pprint, threading, sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
-parser.add_argument('-c', '--calfile', help='Input the calfile to be used for analysis.', required=True)
-parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatizations to plot.', required=True)
-parser.add_argument('-t', '--time_avg', help='Toggle time averaging.', action='store_true')
-parser.add_argument('-x', '--ex_ants', help='Input a comma-delimited list of antennae to exclude from analysis.', type=str)
-parser.add_argument('-s', '--step', help='Toggle file stepping.', action='store')
+parser.add_argument('-f', '--filenames', nargs='*', required=True, help='Input a list of filenames to be analyzed.')
+parser.add_argument('-c', '--calfile', help='Input the calfile to be used for analysis.')
+parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatizations to plot.')
+parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time averaging.')
+parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
+parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
+parser.add_argument('-r', '--range', help='Supply a range of times throughout a day to process.')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 
+files = args.filenames[:]
 
+if not args.range == None:
+    range_start = args.range.split('_')[0]
+    range_end = args.range.split('_')[1]
+    print range_start, range_end
 
+    for file in files[:]:
+        time = file.split('.')[-4]
+        if time < range_start:
+            files.remove(file)
+        elif time > range_end:
+            files.remove(file)
 
 if not args.step is None:
-    opts = ["-c " + args_calfile, "-p " + args_pol]
-    if args_time_avg:
-        opts.append("-t")
-    if not args_ex_ants is None:
-        opts.append("-x={}".format(args_ex_ants))
-
-    files_all = [file for file in args_filenames if 'xx' in file]
-
-    for file_index in range(0, len(files_all), args_step):
-        cmd = opts + ["-f"] + files_all[file_index : file_index + args_step]
-        
-        print "I just executed the following arguments:"
-        pprint.pprint(cmd)
-        
-        os.system("python2.7 getWedge.py {}".format(" ".join(cmd)))
-        
-        print
+    wedge_utils.step(sys.argv, args.step, files, args.filenames)
     quit()
-
 
 if args.pol == 'stokes':
     pols = ['xx','xy','yx','yy']
