@@ -29,9 +29,9 @@ if args.delay_plot:
     for filename in args.filenames:
         wedge_utils.plot_delayavg(filename, args.path)
 
-"""if args.multi_delayplot:
+if args.multi_delayplot:
     for filename in args.filenames:
-        wedge_utils.plot_multi_delayavg(filename, args.path)"""
+        wedge_utils.plot_multi_delayavg(filename, args.path)
 
 if args.single_plot:
     for filename in args.filenames:

@@ -464,7 +464,7 @@ def plot_delayavg(npz_delayavg, path = './'):
     plt.savefig(npz_delayavg[:-12]+'delayavg.png')
     plt.show()
 
-"""def plot_multi_delayavg(npz_names, path='./', multi = True):
+def plot_multi_delayavg(npz_names, path='./', multi = True):
     #set up multiple plots
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
@@ -478,7 +478,7 @@ def plot_delayavg(npz_delayavg, path = './'):
     plt.tight_layout()
     #plt.savefig(path + npz_names[0][:-3] + "multi.png")
 
-    plt.show()  """
+    plt.show()  
 
 def plot_1D(npz_name, baselines=[]):
 
