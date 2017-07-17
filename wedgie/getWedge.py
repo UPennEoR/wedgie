@@ -50,7 +50,7 @@ if not args.range == None:
             del args.filenames[index:]
 
 if not args.step is None:
-    wedge_utils.step(sys.argv, args.step, args.filenames, files)
+    wedge_utils.step(sys.argv, args.step, files, args.filenames)
     quit()
 
 """
