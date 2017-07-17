@@ -14,7 +14,7 @@ def step(args, step, files, argfiles):
     num_files_xx = len(files_xx)
 
     for arg in args[:]:
-        if  (arg in argfiles) or (arg == '-f') or ('-s=' in arg) or ('-r=' in arg):
+        if (arg in argfiles) or (arg == '-f') or ('-s=' in arg) or ('-r=' in arg):
             args.remove(arg)
         elif (arg == '-s') or (arg == '-r'):
             del args[args.index(arg) + 1]
