@@ -31,15 +31,17 @@ parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time a
 parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
 parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
 parser.add_argument('-r', '--range', help='Supply a range of times throughout a day to process.')
+parser.add_argument('--freq', default='0_1024')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
+
+freq_range = (int(args.freq.split('_')[0]), int(args.freq.split('_')[1]))
 
 files = args.filenames[:]
 
 if not args.range == None:
     range_start = args.range.split('_')[0]
     range_end = args.range.split('_')[1]
-    print range_start, range_end
 
     for file in files[:]:
         time = file.split('.')[-4]
@@ -76,9 +78,10 @@ history = {
     'pol': args.pol, 
     'time_avg': args.time_avg, 
     'ex_ants': args.ex_ants, 
-    'step': args.step
+    'step': args.step,
+    'range': args.range,
+    'freq_range': args.freq
     }
-
 
 if not args.ex_ants is None:
     ex_ants_list = map(int, args.ex_ants.split(','))
@@ -87,15 +90,15 @@ else:
 
 if args.pol == 'stokes':
     #calculate and get the names of the npz files
-    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], history, ex_ants_list)
+    npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], history, freq_range, ex_ants_list)
 
-elif args.delay_avg and (len(pols) == 1 ):
+elif args.delay_avg and (len(pols) == 1):
     for filename in args.filenames:
         wedge_utils.wedge_delayavg(filename)
 
 elif len(pols) == 1:
     if args.time_avg:
-        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], history, ex_ants_list)
+        npz_name = wedge_utils.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], history, freq_range, ex_ants_list)
     else:
         npz_name = wedge_utils.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], history, ex_ants_list)
 
@@ -103,4 +106,4 @@ elif len(pols) > 1:
     npz_names = []
 
     for i in range(len(pols)):
-        npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, ex_ants_list))
+        npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, freq_range, ex_ants_list))

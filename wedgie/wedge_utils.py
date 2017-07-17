@@ -113,7 +113,7 @@ def get_baselines(calfile, ex_ants=[]):
     Requires cal file to be in PYTHONPATH.
     """
     try:
-        print 'reading, %s'%calfile
+        print 'Reading: %s.'%calfile
         exec("import {cfile} as cal".format(cfile=calfile))
         antennae = cal.prms['antpos_ideal']
     except ImportError:
@@ -208,7 +208,7 @@ def wedge_blavg(filenames, pol, calfile, history, ex_ants=[]):
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
     return npz_name
 
-def wedge_timeavg(filenames, pol, calfile, history, ex_ants=[], stokes=[]):
+def wedge_timeavg(filenames, pol, calfile, history, freq_range, ex_ants=[], stokes=[]):
     """
     Plots wedges per baseline length, averaged over baselines and time
     if stokes is specified, then it should be of form [t, d, f]
@@ -219,7 +219,13 @@ def wedge_timeavg(filenames, pol, calfile, history, ex_ants=[], stokes=[]):
     else: 
         #get data from file
         t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
-    
+
+    t['freqs'] = t['freqs'][freq_range[0]:freq_range[1]]
+
+    for key in d.keys():
+        d[key][pol] = d[key][pol][:,freq_range[0]:freq_range[1]]
+        f[key][pol] = f[key][pol][:,freq_range[0]:freq_range[1]]
+
     #stores vis^2 for each baselength averaged over time
     wedgeslices = []
     
@@ -231,6 +237,7 @@ def wedge_timeavg(filenames, pol, calfile, history, ex_ants=[], stokes=[]):
 
     #get number of times and number of channels
     ntimes,nchan = len(t['times']),len(t['freqs'])
+
     dt = np.diff(t['times'])[0] #dJD
 
     #get vis^2 for each baselength
@@ -280,7 +287,7 @@ def wedge_timeavg(filenames, pol, calfile, history, ex_ants=[], stokes=[]):
                 if i % 2:
                     _v1 = ftd_2D_data[i-1,:]
                     phase_correction = np.conj(aa.gen_phs(zenith,antpair[0],antpair[1]))*aa.gen_phs(old_zenith,antpair[0],antpair[1])
-                    _v2 = ftd_2D_data[i,:]*phase_correction
+                    _v2 = ftd_2D_data[i,:]*phase_correction[freq_range[0]:freq_range[1]]
                     vissq_per_antpair[i // 2,:] = np.conj(_v1)*_v2
 
             #store time average for this baseline length
@@ -289,10 +296,12 @@ def wedge_timeavg(filenames, pol, calfile, history, ex_ants=[], stokes=[]):
         #compute average for baseline length, average over time, and store in wedgeslices
         vissq_per_bl /= len(antdict[baselength])
         wedgeslices.append(np.log10(np.fft.fftshift(np.mean(np.abs(vissq_per_bl), axis=0))))
-        print 'finished a wedgeslice!'
+        print 'Wedgeslice for baseline {} complete.'.format(baselength)
 
     #get delays
-    delays = np.fft.fftshift(np.fft.fftfreq(1024, .1/1024)) #XXX hardcoded #1024 bins, channel width of 0.1 GHz/1024 
+    channel_width = (t['freqs'][1] - t['freqs'][0])*10**3 # Channel width in units of GHz
+    num_bins = len(t['freqs'])
+    delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
     
     #save filedata as npz
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
@@ -301,7 +310,7 @@ def wedge_timeavg(filenames, pol, calfile, history, ex_ants=[], stokes=[]):
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
     return npz_name
 
-def wedge_stokes(filenames, calfile, history, ex_ants=[]):
+def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
     """
     calls wedge_timeavg for each stokes parameter
     assumes filenames is a list of lists separated by pol:
@@ -312,7 +321,7 @@ def wedge_stokes(filenames, calfile, history, ex_ants=[]):
     txy,dxy,fxy = capo.miriad.read_files(filenames[1],antstr='cross',polstr='xy')
     tyx,dyx,fyx = capo.miriad.read_files(filenames[2],antstr='cross',polstr='yx')
     tyy,dyy,fyy = capo.miriad.read_files(filenames[3],antstr='cross',polstr='yy')
-    
+
     #calculate I (VI = Vxx + Vyy)
     tI = txx
     dI = {}
@@ -320,29 +329,29 @@ def wedge_stokes(filenames, calfile, history, ex_ants=[]):
     for key in dxx.keys():
         dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
         fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
-    nameI = wedge_timeavg(filenames[0], 'I', calfile, history, ex_ants, stokes=[tI, dI, fI])
+    nameI = wedge_timeavg(filenames[0], 'I', calfile, history, freq_range, ex_ants, stokes=[tI, dI, fI])
     print 'Stokes I completed'
 
     #calculate Q (VQ = Vxx - Vyy)
-    tQ = txx
+    tQ = tyy
     dQ = {}
     fQ = {}
     for key in dxx.keys():
         dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
         fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
-    nameQ = wedge_timeavg(filenames[0], 'Q', calfile, history, ex_ants, stokes=[tQ, dQ, fQ])
+    nameQ = wedge_timeavg(filenames[0], 'Q', calfile, history, freq_range, ex_ants, stokes=[tQ, dQ, fQ])
     print 'Stokes Q completed'
     
     #calculate U (VU = Vxy + Vyx)
-    tU = txy
+    tU = tyx
     dU = {}
     fU = {}
     for key in dxy.keys():
         dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
         fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
-    nameU = wedge_timeavg(filenames[2], 'U', calfile, history, ex_ants, stokes=[tU, dU, fU])
+    nameU = wedge_timeavg(filenames[2], 'U', calfile, history, freq_range, ex_ants, stokes=[tU, dU, fU])
     print 'Stokes U completed'
-    
+
     #calculate V (VV = -i*Vxy + i*Vyx)
     tV = txy
     dV = {}
@@ -350,9 +359,11 @@ def wedge_stokes(filenames, calfile, history, ex_ants=[]):
     for key in dxy.keys():
         dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
-    nameV = wedge_timeavg(filenames[2], 'V', calfile, history, ex_ants, stokes=[tV, dV, fV])
+    nameV = wedge_timeavg(filenames[2], 'V', calfile, history, freq_range, ex_ants, stokes=[tV, dV, fV])
     print 'Stokes V completed'
     
+    # nameI, nameQ, nameU='dasdas', 'jhgdd', 'jyrweds'
+
     return [nameI, nameQ, nameU, nameV]
 
 # Plotting Routines
