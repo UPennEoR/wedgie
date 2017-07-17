@@ -89,7 +89,7 @@ if args.pol == 'stokes':
     #calculate and get the names of the npz files
     npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], history, ex_ants_list)
 
-if args.delay_avg and (len(pols) == 1 ):
+elif args.delay_avg and (len(pols) == 1 ):
     for filename in args.filenames:
         wedge_utils.wedge_delayavg(filename)
 
