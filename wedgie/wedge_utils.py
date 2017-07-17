@@ -438,7 +438,7 @@ def plot_multi_timeavg(npz_names, path='./'):
     plt.savefig(npz_names[0][:-3] + "multi.png")
     plt.show()
 
-def wedge_delayavg(npz_name):
+def wedge_delayavg(npz_name, path='./', multi = False):
 
     plot_data = np.load(npz_name)
     delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
@@ -459,7 +459,7 @@ def wedge_delayavg(npz_name):
     print "got here!!!"
     return npz_delayavg
 
-def plot_delayavg(npz_delayavg):
+def plot_delayavg(npz_delayavg, path = './'):
     
     plot_data = np.load(npz_delayavg)
     delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
@@ -491,7 +491,7 @@ def plot_delayavg(npz_delayavg):
     plt.savefig(npz_delayavg[:-12]+'delayavg.png')
     plt.show()
 
-def plot_multi_delayavg(npz_names):
+"""def plot_multi_delayavg(npz_names, path='./', multi = True):
     #set up multiple plots
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
@@ -500,12 +500,12 @@ def plot_multi_delayavg(npz_names):
     #plot each plot in its own gridspec area   
     for i in range(len(npz_names)):
         axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        plot_delayavg(npz_names[i]) #, path, multi=True)
+        plot_delayavg(npz_names[i], path ='./')
 
     plt.tight_layout()
     #plt.savefig(path + npz_names[0][:-3] + "multi.png")
 
-    plt.show()  
+    plt.show()  """
 
 def plot_1D(npz_name, baselines=[]):
 
@@ -531,7 +531,8 @@ def plot_1D(npz_name, baselines=[]):
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
     plt.legend(loc='upper left')
-    
+    plt.ylim((-3.5,2.0)) 
+   
     axes = plt.subplot(G[:,5:9])
     for i in baselines:
         plt.plot(plot_data['dlys'], plot_data['wdgslc'][i])
@@ -541,9 +542,11 @@ def plot_1D(npz_name, baselines=[]):
 	plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
 	plt.axvline(0, color='#d3d3d3', linestyle='--')
     plt.xlim((-450,450))
+    plt.ylim((-3.5,2.0))
     
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
+    npz_name = npz_name.split('/')[-1]
     plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
         
     plt.show()
