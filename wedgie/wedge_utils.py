@@ -401,10 +401,10 @@ def plot_blavg(npz_name, path='./'):
     #scale x axis to the significant information
     axarr[0].set_xlim(-450,450)
 
-    plt.savefig(path + npz_name[:-3] + 'png')
+    plt.savefig(npz_name[:-3] + 'png')
     plt.show()
 
-def plot_timeavg(npz_name, path='./', multi=False):
+def plot_timeavg(npz_name, multi=False):
     plot_data = np.load(npz_name)
     
     d_start = plot_data['dlys'][0]
@@ -415,6 +415,7 @@ def plot_timeavg(npz_name, path='./', multi=False):
     cbar = plt.colorbar()
     cbar.set_label("log10((mK)^2)")
     plt.xlim((-450,450))
+    npz_name = npz_name.split('/')[-1]
     plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
 
     #calculate light travel time for each baselength
@@ -431,10 +432,10 @@ def plot_timeavg(npz_name, path='./', multi=False):
     if multi:
         return
     else:
-        plt.savefig(path + npz_name[:-3] + 'png')
+        plt.savefig(npz_name[:-3] + 'png')
         plt.show()
 
-def plot_multi_timeavg(npz_names, path='./'):
+def plot_multi_timeavg(npz_names):
     #set up multiple plots
     nplots = len(npz_names)
     plt.figure(figsize=(4*nplots-3,3))
@@ -443,7 +444,7 @@ def plot_multi_timeavg(npz_names, path='./'):
     #plot each plot in its own gridspec area   
     for i in range(len(npz_names)):
         axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        plot_timeavg(npz_names[i], path, multi=True)
+        plot_timeavg(npz_names[i], multi=True)
 
     plt.tight_layout()
     plt.savefig(npz_names[0][:-3] + "multi.png")

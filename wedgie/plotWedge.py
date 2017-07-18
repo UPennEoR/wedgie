@@ -27,7 +27,7 @@ if args.plot_1D is not None:
 
 if args.delay_plot:
     for filename in args.filenames:
-        wedge_utils.plot_delayavg(filename, args.save_path)
+        wedge_utils.plot_delayavg(filename)
 
 """if args.multi_delayplot:
     for filename in args.filenames:
@@ -36,12 +36,12 @@ if args.delay_plot:
 if args.single_plot:
     for filename in args.filenames:
         if filename.split('.')[-2] == 'timeavg':
-            wedge_utils.plot_timeavg(filename, args.save_path)
+            wedge_utils.plot_timeavg(filename)
         elif filename.split('.')[-2] == 'blavg':
-            wedge_utils.plot_blavg(filename, args.save_path)
+            wedge_utils.plot_blavg(filename)
 
 elif args.multi_plot:
-    wedge_utils.plot_multi_timeavg(args.filenames, args.save_path)
+    wedge_utils.plot_multi_timeavg(args.filenames)
 
 elif args.avg_plot:
     wedge_utils.plot_avgs(args.filenames)
