@@ -113,7 +113,7 @@ def get_baselines(calfile, ex_ants=[]):
     Requires cal file to be in PYTHONPATH.
     """
     try:
-        print 'Reading: %s.'%calfile
+        print 'Reading calfile: %s.'%calfile
         exec("import {cfile} as cal".format(cfile=calfile))
         antennae = cal.prms['antpos_ideal']
     except ImportError:
@@ -330,7 +330,7 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
         dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
         fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
     nameI = wedge_timeavg(filenames[0], 'I', calfile, history, freq_range, ex_ants, stokes=[tI, dI, fI])
-    print 'Stokes I completed'
+    print 'Stokes I completed.'
 
     #calculate Q (VQ = Vxx - Vyy)
     tQ = tyy
@@ -340,7 +340,7 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
         dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
         fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
     nameQ = wedge_timeavg(filenames[0], 'Q', calfile, history, freq_range, ex_ants, stokes=[tQ, dQ, fQ])
-    print 'Stokes Q completed'
+    print 'Stokes Q completed.'
     
     #calculate U (VU = Vxy + Vyx)
     tU = tyx
@@ -350,7 +350,7 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
         dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
         fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
     nameU = wedge_timeavg(filenames[2], 'U', calfile, history, freq_range, ex_ants, stokes=[tU, dU, fU])
-    print 'Stokes U completed'
+    print 'Stokes U completed.'
 
     #calculate V (VV = -i*Vxy + i*Vyx)
     tV = txy
@@ -360,7 +360,7 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
         dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
     nameV = wedge_timeavg(filenames[2], 'V', calfile, history, freq_range, ex_ants, stokes=[tV, dV, fV])
-    print 'Stokes V completed'
+    print 'Stokes V completed.'
     
     # nameI, nameQ, nameU='dasdas', 'jhgdd', 'jyrweds'
 

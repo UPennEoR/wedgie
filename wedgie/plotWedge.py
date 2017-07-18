@@ -7,7 +7,7 @@ import argparse, wedge_utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
-parser.add_argument('-p', '--path', help='Path to save destination for png files.', default='./')
+parser.add_argument('-S', '--save_path', help='Path to save destination for png files.', default='./')
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
@@ -27,21 +27,21 @@ if args.plot_1D is not None:
 
 if args.delay_plot:
     for filename in args.filenames:
-        wedge_utils.plot_delayavg(filename, args.path)
+        wedge_utils.plot_delayavg(filename, args.save_path)
 
 """if args.multi_delayplot:
     for filename in args.filenames:
-        wedge_utils.plot_multi_delayavg(filename, args.path)"""
+        wedge_utils.plot_multi_delayavg(filename, args.save_path)"""
 
 if args.single_plot:
     for filename in args.filenames:
         if filename.split('.')[-2] == 'timeavg':
-            wedge_utils.plot_timeavg(filename, args.path)
+            wedge_utils.plot_timeavg(filename, args.save_path)
         elif filename.split('.')[-2] == 'blavg':
-            wedge_utils.plot_blavg(filename, args.path)
+            wedge_utils.plot_blavg(filename, args.save_path)
 
 elif args.multi_plot:
-    wedge_utils.plot_multi_timeavg(args.filenames, args.path)
+    wedge_utils.plot_multi_timeavg(args.filenames, args.save_path)
 
 elif args.avg_plot:
     wedge_utils.plot_avgs(args.filenames)

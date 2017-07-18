@@ -31,7 +31,7 @@ parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time a
 parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
 parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
 parser.add_argument('-r', '--range', help='Supply a range of times throughout a day to process.')
-parser.add_argument('--freq', default='0_1024')
+parser.add_argument('-F', '--freq', default='0_1024')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 

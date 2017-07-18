@@ -1,12 +1,13 @@
-import imageio, glob, argparse
+import imageio, glob, argparse, pprint
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--files', help='Files to be giffed.', nargs='*', required=True)
+parser.add_argument('-f', '--files', help='Files to be giffed. Must use "-f=" notation.', nargs='*', required=True)
 parser.add_argument('-s', '--save', help='Input path for save location.', default='./')
 parser.add_argument('-d', '--duration', help='Set duration of each from of gif in seconds.', default=2, type=float)
 args = parser.parse_args()
 
-images = sorted(glob.glob("{}".format("".join(args.files))))
+
+images = sorted(glob.glob("{}".format(" ".join(args.files))))
 
 gif =[]
 for image in images:
