@@ -31,6 +31,7 @@ parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time a
 parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
 parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
 parser.add_argument('-F', '--freq', default='0_1024')
+parser.add_argument('-L', '--load', default=3, type=int)
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 
@@ -39,7 +40,8 @@ freq_range = (int(args.freq.split('_')[0]), int(args.freq.split('_')[1]))
 files = args.filenames[:]
 
 if not args.step is None:
-    wedge_utils.step(sys.argv, args.step, files, args.filenames)
+    wedge_utils.step(sys.argv, args.step, files, args.filenames, args.load)
+    print 'Step program complete.'
     quit()
 
 if args.pol == 'stokes':
