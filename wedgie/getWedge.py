@@ -34,6 +34,7 @@ parser.add_argument('-F', '--freq', default='0_1024')
 parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
 args = parser.parse_args()
 
+freq_range = (int(args.freq.split('_')[0]), int(args.freq.split('_')[1]))
 
 files = args.filenames[:]
 

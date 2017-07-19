@@ -85,8 +85,9 @@ def plot_avgs(npz_names):
     # plt.savefig('fig1.png')
     plt.show()
 
-
 # Calfile-specific manipulations
+def bl_orientations(calfile, ex_ants=[]):
+    pass
 
 def calculate_baseline(antennae, pair):
     """
@@ -448,7 +449,7 @@ def plot_multi_timeavg(npz_names):
 
     plt.tight_layout()
     plt.savefig(npz_names[0][:-3] + "multi.png")
-    plt.show()
+    # plt.show()
 
 def wedge_delayavg(npz_name, path='./', multi = False):
 
