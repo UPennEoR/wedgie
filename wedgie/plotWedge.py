@@ -16,7 +16,7 @@ parser.add_argument('-o', '--plot_1D', help="Plot (optional: specified as comma 
 
 args = parser.parse_args()
 
-if args.plot_1D is not None:
+if (args.plot_1D is not None) and not args.multi_plot:
     if args.plot_1D == 'all':
         baselines = []
     else:
@@ -40,7 +40,14 @@ if args.single_plot:
             wedge_utils.plot_blavg(filename)
 
 elif args.multi_plot:
-    wedge_utils.plot_multi_timeavg(args.filenames)
+    if args.plot_1D is not None:
+        if args.plot_1D == 'all':
+            baselines = []
+        else:
+            baselines = [int(x) for x in args.plot_1D.split(',')]
+        wedge_utils.plot_multi_1D(args.filenames, baselines)
+    else:
+        wedge_utils.plot_multi_timeavg(args.filenames)
 
 elif args.avg_plot:
     wedge_utils.plot_avgs(args.filenames)

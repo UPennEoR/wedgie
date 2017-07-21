@@ -563,3 +563,61 @@ def plot_1D(npz_name, baselines=[]):
     plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
         
     plt.show()
+    
+def plot_multi_1D(npz_names, baselines=[]):
+    """
+    Plots four 1D plots next to each other.
+    If baselines is a specified argument (start indexing with baseline lengt #1),
+    then only plots the the provided baselines.
+    """
+
+    plot_data = np.load(npz_names[0])
+    #set up baselines
+    if len(baselines):
+        baselines = [i-1 for i in baselines]
+    else:
+        baselines = range(len(plot_data['wdgslc']))
+
+    #set up the plotting space
+    plt.figure(figsize=(18,4))
+    G = gridspec.GridSpec(1,4)
+    
+    #plot each 1D plot
+    polorder = ''
+    for n in range(len(npz_names)):
+        
+        #load data, format plotting section
+        plot_data = np.load(npz_names[n])
+        axes = plt.subplot(G[:,n:n+1])
+        
+        #plot the data
+        for i in baselines:
+            plt.plot(plot_data['dlys'], plot_data['wdgslc'][i], label='bl len '+str(plot_data['bls'][i]))
+        if len(baselines)==1:
+            light_time = plot_data['bls'][baselines[0]]/sc.c*10**9
+            plt.axvline(light_time, color='#d3d3d3', linestyle='--')
+            plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
+        plt.axvline(0, color='#d3d3d3', linestyle='--')
+        plt.xlim((-450,450))
+        plt.ylim((-3.0,2.0))
+        
+        if n==0:
+            plt.legend(loc='upper left')
+        plt.xlabel('Delay (ns)')
+        plt.ylabel('log10((mK)^2)')
+        pol = npz_names[n].split('/')[-1].split('.')[3]
+        plt.title(pol)
+        polorder += pol
+    
+    npz_name = npz_names[0].split('/')[-1]
+    plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2])
+    
+    if len(baselines) == len(plot_data['wdgslc']):
+        blstr = 'allbls'
+    else:
+        blstr = 'bl'
+        for bl in baselines: blstr += str(bl+1)
+    
+    plt.tight_layout()
+    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + "multi1D." + blstr + ".png")
+    plt.show()
