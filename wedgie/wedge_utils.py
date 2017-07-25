@@ -1,42 +1,13 @@
 """
 Module for wedge-creation methods
 """
-import capo, aipy, os, pprint, sys
+import capo, aipy, os, pprint, sys, decimal, IPython
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import numpy as np
 import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
-
-def step(args, step, files, argfiles):
-    files_xx = [file for file in files if 'xx' in file]
-    num_files_xx = len(files_xx)
-
-    for arg in args[:]:
-        if (arg in argfiles) or ('-f' in arg) or ('-s=' in arg) or ('-r=' in arg):
-            args.remove(arg)
-        elif (arg == '-s') or (arg == '-r'):
-            del args[args.index(arg) + 1]
-            args.remove(arg)
-
-    args.insert(0, 'python2.7')
-
-    count = 1
-    for index in range(0, num_files_xx, step):
-        cmd = args + ['-f'] + files_xx[index : index + step]
-
-        if (step <= 10) and (count % 3 != 0):
-            cmd += [" &"]
-        elif (step <= 15) and (step >= 10) and (count % 2):
-            cmd += [" &"]
-
-        pprint.pprint(cmd)
-        cmd = " ".join(cmd)
-        os.system(cmd)
-        count += 1
-        print
-    quit()
 
 def in_out_avg(npz_name):
     plot_data = np.load(npz_name)
@@ -86,75 +57,244 @@ def plot_avgs(npz_names):
     plt.show()
 
 # Calfile-specific manipulations
-def bl_orientations(calfile, ex_ants=[]):
-    pass
+def calculate_slope(antennae, pair):
+    decimal.getcontext().prec = 6
+    dy = decimal.Decimal(antennae[pair[1]]['top_y'] - antennae[pair[0]]['top_y'])
+    dx = decimal.Decimal(antennae[pair[1]]['top_x'] - antennae[pair[0]]['top_x'])
+    if dx != 0:
+        slope = float(dy / dx)
+    else:
+        slope = np.inf
+
+    return slope
 
 def calculate_baseline(antennae, pair):
-    """
-    XXX This problem has been "solved" with numpy instead.
-
-    The decimal module is necessary for keeping the number of decimal places small.
-    Due to small imprecision, if more than 8 or 9 decimal places are used, 
-    many baselines will be calculated that are within ~1 nanometer to ~1 picometer of each other.
-    Because HERA's position precision is down to the centimeter, there is no 
-    need to worry about smaller imprecision.
-    """
-
-    dx = antennae[pair[0]]['top_x'] - antennae[pair[1]]['top_x']
-    dy = antennae[pair[0]]['top_y'] - antennae[pair[1]]['top_y']
-    baseline = np.around([np.sqrt(dx**2. + dy**2.)],3)[0] #XXX this may need tuning
+    decimal.getcontext().prec = 6
+    dx = decimal.Decimal(antennae[pair[0]]['top_x'] - antennae[pair[1]]['top_x'])
+    dy = decimal.Decimal(antennae[pair[0]]['top_y'] - antennae[pair[1]]['top_y'])
+    baseline = (dx**2 + dy**2).sqrt()
     
-    return baseline
+    return float(baseline)
 
 def get_baselines(calfile, ex_ants=[]):
     """
-    Returns a dictionary of redundant baselines based on a calfile, and
-    excluding bad antennae, specified by ex_ants, a list of integers.
+    Returns a dictionary of baseline lengths and the corresponding pairs. The data is based 
+    on a calfile. ex_ants is a list of integers that specify antennae to be exlcuded from 
+    calculation.
     
     Requires cal file to be in PYTHONPATH.
     """
     try:
-        print 'Reading calfile: %s.'%calfile
+        print 'Reading calfile: %s.' %calfile
         exec("import {cfile} as cal".format(cfile=calfile))
         antennae = cal.prms['antpos_ideal']
     except ImportError:
         raise Exception("Unable to import {cfile}.".format(cfile=calfile))
     
-    """
-    determines the baseline and places them in the dictionary.
-    excludes antennae with z-position < 0 or if in ex_ants list
-    """
-    
-    baselines = {}
-    for antenna_i in antennae:
-        if antennae[antenna_i]['top_z'] < 0.:
-            continue
-        if antenna_i in ex_ants:
-            continue
-        
-        for antenna_j in antennae:
-            if antennae[antenna_j]['top_z'] < 0.:
-                continue
-            if antenna_j in ex_ants:
-                continue
+    # Remove all placeholder antennae from consideration
+    # Remove all antennae from ex_ants from consideration
+    ants = []
+    for ant in antennae.keys():
+        if (not antennae[ant]['top_z'] < 0) and (ant not in ex_ants):
+            ants.append(ant)
 
-            if antenna_i == antenna_j:
-                continue
-            elif antenna_i < antenna_j:
-                pair = (antenna_i, antenna_j)
-            elif antenna_i > antenna_j:
-                pair = (antenna_j, antenna_i)
+    # Form pairs of antennae
+    # Store unique baselines and slopes for later use
+    pairs, baselines, slopes =  {}, [], []
+    for ant_i in ants:
+        for ant_j in ants:
+            if (ant_i >= ant_j): continue
+            pair = (ant_i, ant_j)
 
             baseline = calculate_baseline(antennae, pair)
+            baselines.append(baseline)
+            
+            slope = calculate_slope(antennae, pair)
+            slopes.append(slope)
+            
+            pairs[pair] = (baseline, slope)
 
-            if (baseline not in baselines):
-                baselines[baseline] = [pair]
-            elif (pair in baselines[baseline]):
-                continue
-            else:
-                baselines[baseline].append(pair)
-    # pprint.pprint(baselines)
-    return baselines
+    # Remove duplicates baseline and slope values
+    baselines = set(baselines)
+    slopes = set(slopes)
+
+    # Initalize antdict with baselines as keys and empty lists as values
+    antdict = {baseline: [] for baseline in baselines}
+
+    # Add pairs to the list of their respective baseline
+    for pair in pairs:
+        baseline = pairs[pair][0]
+        antdict[baseline].append(pair)
+
+    # Initialize slopedict with baselines for keys and the dictionary of slopes for each value
+    slopedict = {}
+    for baseline in baselines:
+        slopedict[baseline] = {slope: [] for slope in slopes}
+
+    # Add pairs to their respective slope within their respective baseline
+    for pair in pairs:
+        baseline = pairs[pair][0]
+        slope = pairs[pair][1]
+        slopedict[baseline][slope].append(pair)
+
+    for baseline in slopedict.copy():
+        for slope in slopedict[baseline].copy():
+            if slopedict[baseline][slope] == []:
+                del slopedict[baseline][slope]
+
+    return (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
+
+def wedge_flavors(filenames, pol, calfile, history, freq_range, ex_ants=[], stokes=[]):
+    fn1, fn2 = filenames[0].split('/')[-1].split('.'), filenames[-1].split('/')[-1].split('.')
+    zen_day_t0, HH_ext, tf = ".".join(fn1[:3]), ".".join(fn1[4:6]), fn2[2]
+
+    if len(stokes):
+        t, d, f = stokes[0], stokes[1], stokes[2]
+        npz_name = "{}_{}.stokes{}.{}.{}_{}.flavors.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
+    else: 
+        t,d,f = capo.miriad.read_files(filenames,antstr='cross',polstr=pol) 
+        npz_name = "{}_{}.{}.{}.{}_{}.flavors.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
+    print npz_name
+
+    t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
+    for key in d.keys():
+        d[key][pol] = d[key][pol][:, freq_range[0]:freq_range[1]]
+        f[key][pol] = f[key][pol][:, freq_range[0]:freq_range[1]]
+
+    baseline_info = get_baselines(calfile, ex_ants)
+    antdict, slopedict, pairs = baseline_info[0], baseline_info[1], baseline_info[2]
+    baselines, slopes = baseline_info[3], baseline_info[4]
+
+    ntimes, nchan = len(t['times']), len(t['freqs'])
+
+    dt = np.diff(t['times'])[0]
+
+    wedgeslices = []
+    for baseline in sorted(slopedict.keys()):
+        vis_sq_baseline = np.zeros((ntimes // 2 ,nchan))
+        for slope in sorted(slopedict[baseline].keys()):
+            vis_sq_slope = np.zeros((ntimes // 2 ,nchan))
+            for pair in slopedict[baseline][slope]:
+                vis_sq_pair = np.zeros((ntimes // 2, nchan))
+
+                uv = aipy.miriad.UV(filenames[0])
+                aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan'])
+                del(uv)
+                
+                clean = 1e-3
+                w = aipy.dsp.gen_window(d[pair][pol].shape[-1], window='blackman-harris')
+                _dw = np.fft.ifft(d[pair][pol] * w)
+                _ker= np.fft.ifft(f[pair][pol] * w)
+                gain = aipy.img.beam_gain(_ker)
+                for time in range(_dw.shape[0]):
+                    _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
+                    _dw[time, :] += info['res'] / gain
+                ftd_2D_data = np.ma.array(_dw)
+
+                for i in range(ntimes):                     
+                    aa.set_active_pol(pol) 
+                    if i != 0:
+                        old_zenith = zenith
+                    else:    
+                        time = t['times'][i]    
+                    aa.set_jultime(time)
+                    lst = aa.sidereal_time()
+                    zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
+                    zenith.compute(aa)
+                    if i == 0:
+                        continue
+
+                    if i % 2:
+                        _v1 = ftd_2D_data[i-1,:]
+                        phase_correction = np.conj(aa.gen_phs(zenith, pair[0], pair[1])) * aa.gen_phs(old_zenith, pair[0], pair[1])
+                        _v2 = ftd_2D_data[i, :] * phase_correction[freq_range[0]: freq_range[1]]
+
+                        vis_sq_pair[i // 2, :] = np.conj(_v1) * _v2
+
+                vis_sq_slope += vis_sq_pair
+
+            vis_sq_slope /= len(slopedict[baseline])
+
+            wedgeslices.append(np.log10(np.fft.fftshift(np.mean(np.abs(vis_sq_slope), axis=0))))
+            print 'Wedgeslice for baseline {} and slope {} complete.'.format(baseline, slope)
+   
+    channel_width = (t['freqs'][1] - t['freqs'][0])*10**3 # Channel width in units of GHz
+    num_bins = len(t['freqs'])
+    delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+    
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselines, slps=slopes, prs=pairs, slpdct=slopedict, hist=history)
+    return npz_name
+
+def plot_flavors(npz_name, multi=False):
+    npz_name = "".join(npz_name)
+    data = np.load(npz_name)
+
+    axis_delay_start = data['dlys'][0]
+    axis_delay_end = data['dlys'][-1]
+    plot = plt.imshow(
+        data['wdgslc'],
+        aspect='auto',
+        # interpolation='nearest',
+        extent=[axis_delay_start, axis_delay_end, len(data['wdgslc']), 0],
+        vmin=-3.0,
+        vmax=1.0)
+    
+    plt.xlabel("Delay (ns)")
+
+    plt.xlim((-450, 450))
+
+    ticks = []
+    slopedict = data['slpdct'].tolist()
+    for baseline in sorted(slopedict.keys()):
+        for slope in sorted(slopedict[baseline].keys()):
+            ticks.append("{:.3}: {:8.3}".format(baseline, slope))
+
+    light_times = []
+    for baseline in sorted(slopedict.keys()):
+        for slope in sorted(slopedict[baseline].keys()):
+            light_times.append(baseline/sc.c*10**9)
+
+    for i in range(len(light_times)):
+        x1, y1 = [light_times[i], light_times[i]], [i, i+1] 
+        x2, y2 = [-light_times[i], -light_times[i]], [i, i+1]
+        plt.plot(x1, y1, 'w', x2, y2, 'w')
+
+    plt.axvline(x=0, color='k', linestyle='dashed', linewidth=0.5)
+
+
+    if multi:
+        plt.title(".".join(npz_name.split('.')[2:4]))
+        return ticks
+    else:
+        plt.title(npz_name.split('.')[3])
+        plt.ylabel("Baseline length (short to long)")
+        color_bar = plt.colorbar().set_label("log10((mK)^2)")
+        plt.yticks(np.arange(len(ticks)), ticks)
+        plt.tight_layout()
+        plt.savefig(".".join(npz_name.split('.')[:-1]) + '.png')
+        plt.show()
+
+def plot_multi_flavors(npz_names):
+    nplots = len(npz_names)
+    plt.figure(figsize=(15, 5))
+    G = gridspec.GridSpec(3, (4 * nplots) - 4)
+
+    for i in range(nplots):
+        axes = plt.subplot(G[:, (i*3):(i*3)+3])
+        ticks = plot_flavors(npz_names[i], multi=True)
+        if i != 0:
+            plt.yticks([])
+            continue
+
+        plt.yticks(np.arange(len(ticks)), ticks)
+        plt.ylabel("Baseline length (short to long)")
+    color_bar = plt.colorbar().set_label("log10((mK)^2)")
+
+    # plt.tight_layout()
+    plt.savefig(".".join(npz_names[0].split('.')[0:3] + npz_names[0].split('.')[4:8]) + '.multi.png')
+    plt.show()
+
+
 
 # wedge/pitchfork calculation methods
 def wedge_blavg(filenames, pol, calfile, history, ex_ants=[]):
@@ -171,7 +311,7 @@ def wedge_blavg(filenames, pol, calfile, history, ex_ants=[]):
     
     #get dictionary of antennae pairs
     #keys are baseline lengths, values are list of tuples (antenna numbers)
-    antdict = get_baselines(calfile, ex_ants)
+    antdict = get_baselines(calfile, ex_ants)[0]
     baselengths = antdict.keys()
     baselengths.sort()
     
@@ -232,7 +372,7 @@ def wedge_timeavg(filenames, pol, calfile, history, freq_range, ex_ants=[], stok
     
     #get dictionary of antennae pairs
     #keys are baseline lengths, values are list of tuples (antenna numbers)
-    antdict = get_baselines(calfile, ex_ants)
+    antdict = get_baselines(calfile, ex_ants)[0]
     baselengths = antdict.keys()
     baselengths.sort()
 
@@ -307,11 +447,11 @@ def wedge_timeavg(filenames, pol, calfile, history, freq_range, ex_ants=[], stok
     #save filedata as npz
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
     fn1, fn2 = (filenames[0].split('/')[-1]).split('.'), (filenames[-1].split('/')[-1]).split('.')
-    npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+pol+'.'+fn1[4]+'.'+fn1[5]+'.timeavg.npz'
+    npz_name = fn1[0]+'.'+fn1[1]+'.'+fn1[2]+'_'+fn2[2]+'.'+pol+'.'+fn1[4]+'.'+fn1[5]+'.'+str(freq_range[0])+'_'+str(freq_range[1])+'.timeavg.npz'
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
     return npz_name
 
-def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
+def wedge_stokes(filenames, calfile, history, freq_range, flavors, ex_ants=[]):
     """
     calls wedge_timeavg for each stokes parameter
     assumes filenames is a list of lists separated by pol:
@@ -330,7 +470,10 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
     for key in dxx.keys():
         dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
         fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
-    nameI = wedge_timeavg(filenames[0], 'I', calfile, history, freq_range, ex_ants, stokes=[tI, dI, fI])
+    if flavors:
+        nameI = wedge_flavors(filenames[0], 'I', calfile, history, freq_range, ex_ants, stokes=[tI, dI, fI])
+    else:
+        nameI = wedge_timeavg(filenames[0], 'I', calfile, history, freq_range, ex_ants, stokes=[tI, dI, fI])
     print 'Stokes I completed.'
 
     #calculate Q (VQ = Vxx - Vyy)
@@ -340,7 +483,10 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
     for key in dxx.keys():
         dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
         fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
-    nameQ = wedge_timeavg(filenames[0], 'Q', calfile, history, freq_range, ex_ants, stokes=[tQ, dQ, fQ])
+    if flavors:
+        nameQ = wedge_flavors(filenames[0], 'Q', calfile, history, freq_range, ex_ants, stokes=[tQ, dQ, fQ])
+    else:
+        nameQ = wedge_timeavg(filenames[0], 'Q', calfile, history, freq_range, ex_ants, stokes=[tQ, dQ, fQ])
     print 'Stokes Q completed.'
     
     #calculate U (VU = Vxy + Vyx)
@@ -350,7 +496,10 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
     for key in dxy.keys():
         dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
         fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
-    nameU = wedge_timeavg(filenames[2], 'U', calfile, history, freq_range, ex_ants, stokes=[tU, dU, fU])
+    if flavors:
+        nameU = wedge_flavors(filenames[0], 'U', calfile, history, freq_range, ex_ants, stokes=[tU, dU, fU])
+    else:
+        nameU = wedge_timeavg(filenames[0], 'U', calfile, history, freq_range, ex_ants, stokes=[tU, dU, fU])
     print 'Stokes U completed.'
 
     #calculate V (VV = -i*Vxy + i*Vyx)
@@ -360,10 +509,11 @@ def wedge_stokes(filenames, calfile, history, freq_range, ex_ants=[]):
     for key in dxy.keys():
         dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
-    nameV = wedge_timeavg(filenames[2], 'V', calfile, history, freq_range, ex_ants, stokes=[tV, dV, fV])
+    if flavors:
+        nameV = wedge_flavors(filenames[0], 'V', calfile, history, freq_range, ex_ants, stokes=[tV, dV, fV])
+    else:
+        nameV = wedge_timeavg(filenames[0], 'V', calfile, history, freq_range, ex_ants, stokes=[tV, dV, fV])
     print 'Stokes V completed.'
-    
-    # nameI, nameQ, nameU='dasdas', 'jhgdd', 'jyrweds'
 
     return [nameI, nameQ, nameU, nameV]
 
@@ -407,7 +557,7 @@ def plot_blavg(npz_name, path='./'):
 
 def plot_timeavg(npz_name, multi=False):
     plot_data = np.load(npz_name)
-    
+
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
     plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0], vmin=-3.0, vmax=1.0)
@@ -449,7 +599,7 @@ def plot_multi_timeavg(npz_names):
 
     plt.tight_layout()
     plt.savefig(npz_names[0][:-3] + "multi.png")
-    # plt.show()
+    plt.show()
 
 def wedge_delayavg(npz_name, path='./', multi = False):
 
@@ -531,9 +681,9 @@ def plot_1D(npz_name, baselines=[]):
     plot_data = np.load(npz_name)
 
     if len(baselines):
-	baselines = [i-1 for i in baselines]
+        baselines = [i-1 for i in baselines]
     else:
-	baselines = range(len(plot_data['wdgslc']))
+        baselines = range(len(plot_data['wdgslc']))
     
     plt.figure(figsize=(12,6))
     G = gridspec.GridSpec(2, 9)
@@ -550,10 +700,10 @@ def plot_1D(npz_name, baselines=[]):
     for i in baselines:
         plt.plot(plot_data['dlys'], plot_data['wdgslc'][i])
     if len(baselines)==1:
-	light_time = plot_data['bls'][baselines[0]]/sc.c*10**9
-	plt.axvline(light_time, color='#d3d3d3', linestyle='--')
-	plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
-	plt.axvline(0, color='#d3d3d3', linestyle='--')
+        light_time = plot_data['bls'][baselines[0]]/sc.c*10**9
+        plt.axvline(light_time, color='#d3d3d3', linestyle='--')
+        plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
+        plt.axvline(0, color='#d3d3d3', linestyle='--')
     plt.xlim((-450,450))
     plt.ylim((-3.5,2.0))
     

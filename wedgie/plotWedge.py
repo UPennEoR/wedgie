@@ -6,9 +6,10 @@ Author: Austin Fox Fortino ,fortino@sas.upenn.edu
 import argparse, wedge_utils
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
+parser.add_argument('-F', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
+parser.add_argument('-f', '--flavors_plot', action='store_true')
 parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
 parser.add_argument('-d', '--delay_plot', help='Plot a single plot from supplied delayavg npz file', action='store_true')
 parser.add_argument('-M','--multi_delayplot', help ='Plot multiple delay average plots', action='store_true')
@@ -40,7 +41,13 @@ if args.single_plot:
             wedge_utils.plot_blavg(filename)
 
 elif args.multi_plot:
-    wedge_utils.plot_multi_timeavg(args.filenames)
+    wedge_utils.plot_multi_timeavg(args.filenames, args.flavors_plot)
 
 elif args.avg_plot:
     wedge_utils.plot_avgs(args.filenames)
+
+elif args.flavors_plot:
+    if len(args.filenames) > 1:
+        wedge_utils.plot_multi_flavors(args.filenames)
+    else:
+        wedge_utils.plot_flavors(args.filenames)
