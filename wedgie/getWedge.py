@@ -50,7 +50,20 @@ def callers(args):
     else:
         ex_ants_list = []
 
-    if args.pol == 'stokes':
+
+    #calculate and get the names of the npz files for
+    if args.pol == 'stokes' and args.blavg:
+        print freq_range
+        print 'that fre;a;kfdasf'
+        print freq_range[0]
+        print freq_range[1]
+        npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], history, freq_range, ex_ants_list, blavg=True)
+
+    if args.pol == 'stokes' and args.bl_num:
+        npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], args.bl_num, history, freq_range, ex_ants_list, bltype=True)
+
+    elif args.pol == 'stokes':
+        #calculate and get the names of the npz files
         npz_names = wedge_utils.wedge_stokes(filenames, args.calfile.split('.')[0], history, freq_range, args.flavors, ex_ants_list)
 
     elif args.delay_avg and (len(pols) == 1):
@@ -74,7 +87,6 @@ def callers(args):
             elif args.time_avg:
                 npz_names.append(wedge_utils.wedge_timeavg(filenames[i], pols[i], args.calfile.split('.')[0], history, freq_range, ex_ants_list))
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-F', '--filenames', nargs='*', required=True, help='Input a list of filenames to be analyzed.')
 parser.add_argument('-C', '--calfile', default='hsa7458_v001', help='Input the calfile to be used for analysis.')
@@ -86,9 +98,10 @@ parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
 parser.add_argument('-r', '--freq_range', default='0_1023', help='Input a range of frequency channels to use separated by an underscore: "550_650"')
 parser.add_argument('-a', '--stair', help='Compute npz files for 1 file, then 2 files, then 3 files, ...  to see how wedges change over multiple files averaged together.', action='store_true')
 # parser.add_argument('-l', '--load', default=3, type=int, help='How many operations do you want to run at once. Used only in conjuction with --step.') XXX Deprecated
-parser.add_argument("--delay_avg", help="sfsdfasdfsf", action="store_true")
+parser.add_argument('-d','--delay_avg', help="sfsdfasdfsf", action="store_true")
+parser.add_argument('-b', '--blavg', action='store_true', default=False, help='Toggle blavg for stokes.')
+parser.add_argument('-l','--bl_num', type=int, help='Toggle bltype and input 1 baseline type.')
 args = parser.parse_args()
-
 
 # If --step or --stair is used, they are executed here.
 if not args.step is None:
@@ -117,8 +130,3 @@ elif not args.stair is None:
 
 else:
     callers(args)
-
-
-
-
-
