@@ -7,7 +7,6 @@ import argparse, wedge_utils
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
-parser.add_argument('-S', '--save_path', help='Path to save destination for png files.', default='./')
 parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 parser.add_argument('-b', '--multi_bl_plot', help='Plot 4 plots for blavg.', action='store_true')
@@ -17,7 +16,7 @@ parser.add_argument('-l', '--plot_bltype', help='Plot non-averaged plots for giv
 parser.add_argument('-o', '--plot_1D', help="Plot (optional: specified as comma delimited list) baselines' wedges on a 1D plot from supplied npz file", default=None, const='all', nargs='?', action='store')
 args = parser.parse_args()
 
-if args.plot_1D is not None:
+if (args.plot_1D is not None) and not args.multi_plot:
     if args.plot_1D == 'all':
         baselines = []
     else:
@@ -25,25 +24,32 @@ if args.plot_1D is not None:
     for filename in args.filenames:
         wedge_utils.plot_1D(filename, baselines)
 
-if args.delay_plot:
+elif args.delay_plot:
     for filename in args.filenames:
-        wedge_utils.plot_delayavg(filename, args.save_path)
+        wedge_utils.plot_delayavg(filename)
 
-if args.single_plot:
+elif args.single_plot:
     for filename in args.filenames:
         if filename.split('.')[-2] == 'timeavg':
-            wedge_utils.plot_timeavg(filename, args.save_path)
+            wedge_utils.plot_timeavg(filename)
         elif filename.split('.')[-2] == 'blavg':
-            wedge_utils.plot_blavg(filename, args.save_path)
+            wedge_utils.plot_blavg(filename)
 
-if args.plot_bltype:
+elif args.plot_bltype:
     for filename in args.filenames:
         wedge_utils.plot_bltype(filename, args.save_path)
 
-if args.multi_plot:
-    wedge_utils.plot_multi_timeavg(args.filenames, args.save_path)
+elif args.multi_plot:
+    if args.plot_1D is not None:
+        if args.plot_1D == 'all':
+            baselines = []
+        else:
+            baselines = [int(x) for x in args.plot_1D.split(',')]
+        wedge_utils.plot_multi_1D(args.filenames, baselines)
+    else:
+        wedge_utils.plot_multi_timeavg(args.filenames)
 
-if args.multi_bl_plot:
+elif args.multi_bl_plot:
     wedge_utils.plot_multi_blavg(args.filenames, args.save_path)
 
 elif args.avg_plot:

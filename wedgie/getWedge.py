@@ -30,12 +30,10 @@ parser.add_argument('-p', '--pol', help='Input a comma-delimited list of polatiz
 parser.add_argument('-t', '--time_avg', action='store_true', help='Toggle time averaging.')
 parser.add_argument('-x', '--ex_ants', type=str, help='Input a comma-delimited list of antennae to exclude from analysis.')
 parser.add_argument('-s', '--step', type=int, help='Toggle file stepping.')
-parser.add_argument('-r', '--range', help='Supply a range of times throughout a day to process.')
 parser.add_argument('-F', '--freq', default='0_1024')
 parser.add_argument('-d','--delay_avg', help="sfsdfasdfsf", action="store_true")
 parser.add_argument('-b', '--blavg', action='store_true', default=False, help='Toggle blavg for stokes.')
 parser.add_argument('-l','--bl_num', type=int, help='Toggle bltype and input 1 baseline type.')
-
 args = parser.parse_args()
 
 freq_range = (int(args.freq.split('_')[0]), int(args.freq.split('_')[1]))
@@ -43,19 +41,9 @@ freq_range = (int(args.freq.split('_')[0]), int(args.freq.split('_')[1]))
 
 files = args.filenames[:] 
 
-if not args.range == None:
-    range_start = args.range.split('_')[0]
-    range_end = args.range.split('_')[1]
-
-    for file in files[:]:
-        time = file.split('.')[-4]
-        if time < range_start:
-            files.remove(file)
-        elif time > range_end:
-            files.remove(file)
-
 if not args.step is None:
-    wedge_utils.step(sys.argv, args.step, files, args.filenames)
+    wedge_utils.step(sys.argv, args.step, files, args.filenames, args.load)
+    print 'Step program complete.'
     quit()
 
 if args.pol == 'stokes':
@@ -84,7 +72,6 @@ history = {
     'time_avg': args.time_avg, 
     'ex_ants': args.ex_ants, 
     'step': args.step,
-    'range': args.range,
     'freq_range': args.freq
     }
 
