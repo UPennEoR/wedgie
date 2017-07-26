@@ -1,6 +1,7 @@
 import argparse
 import wedge_utils as wu
 from IPython import embed
+import threading
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-F',
@@ -33,6 +34,11 @@ parser.add_argument('-s',
                     '--step',
                     help='Toggle file stepping.',
                     type=int)
+parser.add_argument('-L',
+                    '--load',
+                    help='How many processes to run at once.',
+                    type=int,
+                    default=1)
 parser.add_argument('-r',
                     '--freq_range',
                     help='Input a range of frequency channels to use separated by an underscore: "550_650"',
@@ -129,10 +135,18 @@ if args.step is not None:
     files_xx = [file for file in files if 'xx' in file]
     num_files_xx = len(files_xx)
 
+    count = 1
     for index in range(0, num_files_xx, step):
         args.filenames = files_xx[index : index + step]
         zen = Batch(args)
-        zen.logic()
+
+        if count % args.load:
+            threading.Thread(target=zen.logic).start()
+        else:
+            zen.logic()
+
+        count += 1
+
     print 'Step program complete.'
 
 elif args.stair:
