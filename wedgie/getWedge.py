@@ -1,5 +1,6 @@
 import argparse
 import wedge_utils as wu
+from IPython import embed
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-F',
@@ -101,33 +102,27 @@ class Batch:
 
     def logic(self):
         if self.pol_type == 'stokes':
-            if self.args.blavg:
-                wu.wedge_stokes(self.files, self.calfile, self.history, self.freq_range, self.ex_ants, blavg=True)
-            elif self.args.bl_num:
-                wu.wedge_stokes(self.files, self.calfile, self.args.bl_num, self.history, self.freq_range, self.ex_ants, bltype=True)
-            else:
-                print self.freq_range
-                wu.wedge_stokes(self.files, self.calfile, self.history, self.freq_range, self.args.flavors, self.ex_ants)
+                wu.wedge_stokes(self.args, self.files, self.calfile, self.history, self.freq_range, self.ex_ants)
 
         elif self.pol_type == 'multi':
             for i in range(len(pols)):
                 if self.args.flavors:
-                    wu.wedge_flavors(self.files[i], self.pols[i], self.calfile, self.history, self.freq_range, self.ex_ants)
+                    wu.wedge_flavors(self.args, self.files[i], self.pols[i], self.calfile, self.history, self.freq_range, self.ex_ants)
                 elif self.args.time_avg:
-                    wu.wedge_timeavg(self.files[i], self.pols[i], self.calfile, self.history, self.freq_range, self.ex_ants)
+                    wu.wedge_timeavg(self.args, self.files[i], self.pols[i], self.calfile, self.history, self.freq_range, self.ex_ants)
 
         elif self.pol_type == 'single':
             if self.args.delay_avg:
-                for file in self.files:
+                for file in self.files[0]:
                     wu.wedge_delayavg(file)
             elif self.args.flavors:
-                wu.wedge_flavors(args.filenames, args.pol, args.calfile.split('.')[0], history, freq_range, ex_ants_list)
+                wu.wedge_flavors(self.args, self.files[0], self.pols[0], self.calfile, self.history, self.freq_range, self.ex_ants)
             elif self.args.time_avg:
-                wu.wedge_timeavg(args.filenames, args.pol, args.calfile.split('.')[0], history, freq_range, ex_ants_list)
+                wu.wedge_timeavg(self.args, self.files[0], self.pols[0], self.calfile, self.history, self.freq_range, self.ex_ants)
             else:
-                wu.wedge_blavg(args.filenames, args.pol, args.calfile.split('.')[0], history, ex_ants_list)
+                wu.wedge_blavg(self.args, self.files[0], self.pols[0], self.calfile, self.history, self.freq_range, self.ex_ants)
 
-if not args.step is None:
+if args.step is not None:
     step, files = args.step, args.filenames
     del args.step, args.filenames
 
@@ -140,7 +135,7 @@ if not args.step is None:
         zen.logic()
     print 'Step program complete.'
 
-elif not args.stair is None:
+elif args.stair:
     files = args.filenames
     del args.filenames
 

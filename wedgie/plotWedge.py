@@ -38,7 +38,7 @@ elif args.single_plot:
 
 elif args.plot_bltype:
     for filename in args.filenames:
-        wedge_utils.plot_bltype(filename, args.save_path)
+        wedge_utils.plot_bltype(filename)
 
 elif args.multi_plot:
     if args.plot_1D is not None:
@@ -51,7 +51,7 @@ elif args.multi_plot:
         wedge_utils.plot_multi_timeavg(args.filenames)
 
 elif args.multi_bl_plot:
-    wedge_utils.plot_multi_blavg(args.filenames, args.save_path)
+    wedge_utils.plot_multi_blavg(args.filenames)
 
 elif args.avg_plot:
     wedge_utils.plot_avgs(args.filenames)
