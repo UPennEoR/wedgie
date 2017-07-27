@@ -1,7 +1,7 @@
 import argparse
 import wedge_utils as wu
 from IPython import embed
-import threading
+import multiprocessing
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-F',
@@ -141,7 +141,7 @@ if args.step is not None:
         zen = Batch(args)
 
         if count % args.load:
-            threading.Thread(target=zen.logic).start()
+            multiprocessing.Process(target=zen.logic).start()
         else:
             zen.logic()
 
@@ -156,10 +156,17 @@ elif args.stair:
     files_xx = [file for file in files if 'xx' in file]
     num_files_xx = len(files_xx)
 
+    count = 1
     for index in range(1, num_files_xx):
         args.filenames = files_xx[0: index]
         zen = Batch(args)
-        zen.logic()
+        
+        if count % args.load:
+            multiprocessing.Process(target=zen.logic).start()
+        else:
+            zen.logic()
+
+        count += 1
     print 'Stair program complete.'
 
 else:
