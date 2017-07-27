@@ -150,6 +150,8 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
     dt = np.diff(t['times'])[0]
 
+    lst_range = []
+
     wedgeslices = []
     for baseline in sorted(slopedict.keys()):
         vis_sq_baseline = np.zeros((ntimes // 2 ,nchan))
@@ -176,12 +178,15 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
                     aa.set_active_pol(pol) 
                     if i != 0:
                         old_zenith = zenith
-                    else:    
-                        time = t['times'][i]    
+                    time = t['times'][i]    
                     aa.set_jultime(time)
                     lst = aa.sidereal_time()
                     zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                     zenith.compute(aa)
+                    if i==0 and baseline==slopedict.keys()[0] and slope==slopedict[baseline][0] and pair==slopedict[baseline][slope][0]:
+                        lst_range.append(lst)
+                    if i==ntimes-1 and baseline==slopedict.keys()[0] and slope==slopedict[baseline][0] and pair==slopedict[baseline][slope][0]:
+                        lst_range.append(lst)
                     if i == 0:
                         continue
 
@@ -203,7 +208,7 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     num_bins = len(t['freqs'])
     delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
     
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselines, slps=slopes, prs=pairs, slpdct=slopedict, hist=history)
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselines, slps=slopes, prs=pairs, slpdct=slopedict, lst=lst_range, hist=history)
     return npz_name
 
 def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
@@ -273,8 +278,7 @@ def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes
             aa.set_active_pol(pol) 
             if i!=0:
                 old_zenith = zenith
-            else:    
-                time = t['times'][i]    
+            time = t['times'][i]    
             aa.set_jultime(time)
             lst = aa.sidereal_time()
             zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
@@ -318,11 +322,6 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
         npz_name = "{}_{}.{}.{}.{}_{}.blavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     print npz_name
-    
-    print "lodfkaosdpfsdfa"    
-    print t['freqs'][1023]
-    print freq_range[1]
-    print freq_range[0]
 
     t['freqs'] = t['freqs'][freq_range[0]:freq_range[1]]
     ntimes,nchan = len(t['times']),len(t['freqs'])
@@ -339,16 +338,9 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
     antdict = get_baselines(calfile, ex_ants)[0]
     baselengths = antdict.keys()
     baselengths.sort()
-
-    print "fsdfsldfjsadjfasdASADJSDJGFgf"
-    print len(baselengths)
-    print baselengths
-    print antdict[baselengths[6]]
-    print antdict[baselengths[5]]
-    for antpair in antdict[baselengths[0]]:
-            print antpair
-            print "these are antpair"
-
+    
+    lst_range = []
+    
     #for each baselength in the dictionary
     for length in baselengths:
         
@@ -386,12 +378,15 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
                 aa.set_active_pol(pol) 
                 if i!=0:
                     old_zenith = zenith
-                else:    
-                    time = t['times'][i]    
+                time = t['times'][i]    
                 aa.set_jultime(time)
                 lst = aa.sidereal_time()
                 zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                 zenith.compute(aa)
+                if i==0 and length==baselengths[0] and antpair==antdict[length][0]:
+                    lst_range.append(lst)
+                if i==ntimes-1 and length==baselengths[0] and antpair==antdict[length][0]:
+                    lst_range.append(lst)
                 if i==0:
                     continue
 
@@ -418,7 +413,7 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
 
     #save filedata as npz
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
     return npz_name
 
 def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
@@ -457,6 +452,8 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
     dt = np.diff(t['times'])[0] #dJD
 
+    lst_range = []
+
     #get vis^2 for each baselength
     for baselength in baselengths:
 
@@ -491,12 +488,15 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
                 aa.set_active_pol(pol) 
                 if i!=0:
                     old_zenith = zenith
-                else:    
-                    time = t['times'][i]    
+                time = t['times'][i]    
                 aa.set_jultime(time)
                 lst = aa.sidereal_time()
                 zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                 zenith.compute(aa)
+                if i==0 and baselength==baselengths[0] and antpair==antdict[baselength][0]:
+                    lst_range.append(lst)
+                if i==ntimes-1 and baselength==baselengths[0] and antpair==antdict[baselength][0]:
+                    lst_range.append(lst)
                 if i==0:
                     continue
 
@@ -520,7 +520,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     num_bins = len(t['freqs'])
     delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
     
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, hist=history)
+    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
     return npz_name
 
 def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
