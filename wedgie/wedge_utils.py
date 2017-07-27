@@ -184,9 +184,9 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
                     lst = aa.sidereal_time()
                     zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                     zenith.compute(aa)
-                    if i==0 and baseline==slopedict.keys()[0] and slope==slopedict[baseline][0] and pair==slopedict[baseline][slope][0]:
+                    if i==0 and baseline==sorted(slopedict.keys())[0] and slope==sorted(slopedict[baseline])[0] and pair==slopedict[baseline][slope][0]:
                         lst_range.append(lst)
-                    if i==ntimes-1 and baseline==slopedict.keys()[0] and slope==slopedict[baseline][0] and pair==slopedict[baseline][slope][0]:
+                    if i==ntimes-1 and baseline==sorted(slopedict.keys())[0] and slope==sorted(slopedict[baseline])[0] and pair==sorted(slopedict[baseline][slope])[0]:
                         lst_range.append(lst)
                     if i == 0:
                         continue
