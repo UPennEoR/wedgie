@@ -102,26 +102,27 @@ def get_baselines(calfile, ex_ants):
 
 # Data analysis functions:
 def in_out_avg(npz_name):
-    plot_data = np.load(npz_name)
+    data = np.load(npz_name)
+    history = data['hist'].tolist()
+    num_files = len(history['filenames'])
 
     light_times = []
-    for length in plot_data['bls']:
+    for length in data['bls']:
         light_times.append(length / (sc.c * (10**9)))
 
     total_in, total_out = 0, 0
     total_in_count, total_out_count = 0, 0
-    for i in range(len(plot_data['bls'])):
-        for index, delay in enumerate(plot_data['dlys']):
+    for i in range(len(data['bls'])):
+        for index, delay in enumerate(data['dlys']):
             if abs(delay) >= light_times[i]:
-                total_out += plot_data['wdgslc'][i][index]
+                total_out += data['wdgslc'][i][index]
                 total_out_count += 1
             else:
-                total_in += plot_data['wdgslc'][i][index]
+                total_in += data['wdgslc'][i][index]
                 total_in_count += 1
 
     avg_in = total_in / total_in_count
     avg_out = total_out / total_out_count
-    num_files = len(plot_data['hist'].item()['filenames'][0])
 
     return (avg_in, avg_out, num_files)
 
@@ -637,22 +638,35 @@ def plot_avgs(npz_names):
         avgs_in.append(avgs_in_out[0])
         avgs_out.append(avgs_in_out[1])
 
-    pprint.pprint(total_files)
-    pprint.pprint(avgs_in)
-    pprint.pprint(avgs_out)
     plot_avgs_out = plt.scatter(total_files, avgs_out)
     plot_avgs_in = plt.scatter(total_files, avgs_in)
-
     plt.legend((plot_avgs_out, plot_avgs_in), ('Averages Outside Wedge', 'Averages Inside Wedge'))
 
-    plt.xlim((0, 20))
+    x = np.arange(1, len(total_files) + 1)
+    print x
+
+    m, b = np.polyfit(x, avgs_out, 1)
+    plt.plot(x, m * x + b, '-')
+    print m, b
+
+    m, b = np.polyfit(x, avgs_in, 1)
+    plt.plot(x, m * x + b, '-')
+    print m, b
+
+
+    plt.xlim(0, len(total_files))
     plt.ylim(-3.5, 1.5)
-    # plt.savefig('fig1.png')
+
+    plt.xticks(np.arange(0, len(total_files), 2))
+
+    plt.savefig('fig.png')
     plt.show()
 
 def plot_flavors(npz_name, multi=False):
     npz_name = "".join(npz_name)
     data = np.load(npz_name)
+
+    npz_name = npz_name.split('/')[-1]
 
     axis_delay_start = data['dlys'][0]
     axis_delay_end = data['dlys'][-1]
@@ -716,8 +730,10 @@ def plot_multi_flavors(npz_names):
     color_bar = plt.colorbar().set_label("log10((mK)^2)")
 
     # plt.tight_layout()
+    npz_names = [file.split('/')[-1] for file in npz_names]
+    print npz_names
     plt.savefig(".".join(npz_names[0].split('.')[0:3] + npz_names[0].split('.')[4:8]) + '.multi.png')
-    plt.show()
+    # plt.show()
 
 def plot_bltype(npz_name):
 

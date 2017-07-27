@@ -58,6 +58,7 @@ elif args.avg_plot:
 
 elif args.flavors_plot:
     if len(args.filenames) > 1:
-        wedge_utils.plot_multi_flavors(args.filenames)
+        for index in range(0, len(args.filenames), 4):
+            wedge_utils.plot_multi_flavors(args.filenames[index:index+4])
     else:
         wedge_utils.plot_flavors(args.filenames)
