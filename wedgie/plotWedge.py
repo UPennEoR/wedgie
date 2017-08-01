@@ -11,7 +11,7 @@ parser.add_argument('-s', '--single_plot', help='Plot a single plot from supplie
 parser.add_argument('-m', '--multi_plot', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 parser.add_argument('-f', '--flavors_plot', action='store_true')
 parser.add_argument('-b', '--multi_bl_plot', help='Plot 4 plots for blavg.', action='store_true')
-parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.',action='store_true')
+parser.add_argument('-a', '--avg_plot', help='Plots average value inside and outside wedge per files analyzed.')
 parser.add_argument('-d', '--delay_plot', help='Plot a single plot from supplied delayavg npz file', action='store_true')
 parser.add_argument('-l', '--plot_bltype', help='Plot non-averaged plots for given bltype file.', action='store_true')
 parser.add_argument('-o', '--plot_1D', help="Plot (optional: specified as comma delimited list) baselines' wedges on a 1D plot from supplied npz file", default=None, const='all', nargs='?', action='store')
@@ -53,8 +53,9 @@ elif args.multi_plot:
 elif args.multi_bl_plot:
     wedge_utils.plot_multi_blavg(args.filenames)
 
-elif args.avg_plot:
-    wedge_utils.plot_avgs(args.filenames)
+elif args.avg_plot is not None:
+    rng = (int(args.avg_plot.split('_')[0]), int(args.avg_plot.split('_')[1]))
+    wedge_utils.plot_avgs(args.filenames, rng)
 
 elif args.flavors_plot:
     if len(args.filenames) > 1:
