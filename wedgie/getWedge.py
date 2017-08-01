@@ -63,6 +63,10 @@ args = parser.parse_args()
 
 class Batch:
     def __init__(self, args):
+        """
+        Runs preliminary formatting of ex_ants list, polarization, and filenames
+        based on given arguments.
+        """
         self.args = args
         self.history = vars(args)
         
@@ -104,9 +108,17 @@ class Batch:
             self.files.append(pol_files)
 
     def __repr__(self):
+        """
+        Returns self.history, the arguments passed when this instance of the Batch class 
+        was initialized.
+        """
         return str(self.history)
 
     def logic(self):
+        """
+        Based on the arguments passed when this instance of the Batch class was initialized 
+        this function decides which functions from wedge_utils.py to execute.
+        """
         if self.pol_type == 'stokes':
                 wu.wedge_stokes(self.args, self.files, self.calfile, self.history, self.freq_range, self.ex_ants)
 
