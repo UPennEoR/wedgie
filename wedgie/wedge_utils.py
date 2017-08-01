@@ -566,7 +566,7 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
         wedge_timeavg(args, files[0], 'Q', calfile, history, freq_range, ex_ants, stokes)
     print 'Stokes Q completed.'
     del txx, dxx, fxx
-    del txy, dxy, fxy
+    del tyy, dyy, fyy
 
     tyx, dyx, fyx = capo.miriad.read_files(files[2], antstr='cross', polstr='yx')
     txy, dxy, fxy = capo.miriad.read_files(files[1], antstr='cross', polstr='xy')
@@ -634,6 +634,8 @@ def wedge_delayavg(npz_name, multi = False):
 
 # Plotting functions:
 def plot_avgs(npz_names, rng):
+    name = ".".join(npz_names[-1].split('/')[-1].split('.')[:7])
+
     total_files = []
     avgs_in = []
     avgs_out = []
@@ -642,8 +644,6 @@ def plot_avgs(npz_names, rng):
         total_files.append(avgs_in_out[2])
         avgs_in.append(avgs_in_out[0])
         avgs_out.append(avgs_in_out[1])
-
-    embed()
 
     plt.figure(figsize=(20, 10))
 
@@ -660,6 +660,7 @@ def plot_avgs(npz_names, rng):
     plt.ylabel('log10((mK)^2)')
 
     plt.title('How Well does the Pitchfork Average Down?')
+    plt.subtitle(name)
 
     # Setting range to calculate a fit over.
     # rng = (7, 26)
@@ -684,7 +685,7 @@ def plot_avgs(npz_names, rng):
     plt.plot(x, m*x + b, '--', color='k')
     plt.text(8, -3, 'Inside Pitchfork Fit RMSE: {:.3}\nInside Pitchfork Fit Slope: {:.3}'.format(RMSE, m))
 
-    plt.savefig(".".join(npz_names[-1].split('/')[-1].split('.')[:7]) + ".avg_val.png")
+    plt.savefig(name + ".avg_val.png")
     plt.show()
 
 def plot_flavors(npz_name, multi=False):
