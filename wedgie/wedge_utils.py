@@ -526,7 +526,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
 def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
     txx, dxx, fxx = capo.miriad.read_files(files[0], antstr='cross', polstr='xx')
-    txy, dxy, fxy = capo.miriad.read_files(files[1], antstr='cross', polstr='xy')
+    tyy, dyy, fyy = capo.miriad.read_files(files[3], antstr='cross', polstr='yy')
 
     #calculate I (VI = Vxx + Vyy)
     tI = txx
@@ -569,7 +569,7 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
     del txy, dxy, fxy
 
     tyx, dyx, fyx = capo.miriad.read_files(files[2], antstr='cross', polstr='yx')
-    tyy, dyy, fyy = capo.miriad.read_files(files[3], antstr='cross', polstr='yy')
+    txy, dxy, fxy = capo.miriad.read_files(files[1], antstr='cross', polstr='xy')
 
     #calculate U (VU = Vxy + Vyx)
     tU = tyx
