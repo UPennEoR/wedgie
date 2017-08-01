@@ -25,7 +25,10 @@ def findMiddle(input_list):
 
 class Visibility(object):
     """
-    Observed properties of the instrument.
+    Interferometric observable V(nu,vec(b)).
+    
+    Cosmological conversions rely on universal isotropy, so we only care about
+    the magnitude of the baseline vector, not its direction.
     """
     def __init__(self,freq=None,blmag=None):
         self._freq = freq
@@ -104,7 +107,7 @@ class Visibility(object):
         else:
             return kpl*(1./u.Mpc)
     
-    def uv2kpr(self,blmag):
+    def uv2kpr(self):
         """
         Compute k_perpendicular from the magnitude of the baseline vector and the
         central frequency of observation.
@@ -115,7 +118,10 @@ class Visibility(object):
         Returns k_perpendicular in units of h/Mpc
         """
         lam = c.c/self.freq
-        uvmag = blmag/lam
-        kpr = 2*np.pi*uvmag/(cosmo.comoving_transverse_distance(self.redshift)*cosmo.h)
+        uvmag = self.blmag/lam
+        xi = np.zeros_like(self.redshift)
+        for i,z in enumerate(self.redshift):
+            xi[i] = cosmo.comoving_transverse_distance(z)
+        kpr = 2*np.pi*uvmag/(xi*cosmo.h)
         return kpr.to(1./u.Mpc)
     
