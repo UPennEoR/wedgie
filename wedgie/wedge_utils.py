@@ -430,7 +430,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
         npz_name = "{}_{}.stokes{}.{}.{}_{}.timeavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     else:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-        npz_name = "{}_{}.{}.{}.{}_{}.timavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
+        npz_name = "{}_{}.{}.{}.{}_{}.timeavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     print npz_name
 
     t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
@@ -628,7 +628,7 @@ def wedge_delayavg(npz_name, multi = False):
     return npz_delayavg
 
 # Plotting functions:
-def plot_avgs(npz_names):
+def plot_avgs(npz_names, rng):
     total_files = []
     avgs_in = []
     avgs_out = []
@@ -638,28 +638,48 @@ def plot_avgs(npz_names):
         avgs_in.append(avgs_in_out[0])
         avgs_out.append(avgs_in_out[1])
 
+    embed()
+
+    plt.figure(figsize=(20, 10))
+
     plot_avgs_out = plt.scatter(total_files, avgs_out)
     plot_avgs_in = plt.scatter(total_files, avgs_in)
     plt.legend((plot_avgs_out, plot_avgs_in), ('Averages Outside Wedge', 'Averages Inside Wedge'))
-
-    x = np.arange(1, len(total_files) + 1)
-    print x
-
-    m, b = np.polyfit(x, avgs_out, 1)
-    plt.plot(x, m * x + b, '-')
-    print m, b
-
-    m, b = np.polyfit(x, avgs_in, 1)
-    plt.plot(x, m * x + b, '-')
-    print m, b
-
-
+  
     plt.xlim(0, len(total_files))
+    plt.xticks(np.arange(0, len(total_files)+4, 2))
+    plt.xlabel('Number of Files Used in Averaging')
+
     plt.ylim(-3.5, 1.5)
+    plt.yticks(np.arange(-3, 2))
+    plt.ylabel('log10((mK)^2)')
 
-    plt.xticks(np.arange(0, len(total_files), 2))
+    plt.title('How Well does the Pitchfork Average Down?')
 
-    plt.savefig('fig.png')
+    # Setting range to calculate a fit over.
+    # rng = (7, 26)
+    x = np.arange(rng[0], rng[1])
+
+    # Outside RMSE and fit calculation.
+    m, b = np.polyfit(x, avgs_out[rng[0]:rng[1]], 1)
+    fit = np.poly1d([m, b])
+    outside = avgs_out[rng[0]:rng[1]]
+
+    RMSE = gu.RMSE(fit(x), outside)
+    plt.plot(x, m*x + b, '--', color='k')
+    plt.text(8, 0, 'Outside Pitchfork Fit RMSE: {:.3}\nOutside Pitchfork Fit Slope: {:.3}'.format(RMSE, m))
+
+
+    # Inside RMSE and fit calculation.
+    m, b = np.polyfit(x, avgs_in[rng[0]:rng[1]], 1)
+    fit = np.poly1d([m, b])
+    inside = avgs_in[rng[0]:rng[1]]
+
+    RMSE = gu.RMSE(fit(x), inside)
+    plt.plot(x, m*x + b, '--', color='k')
+    plt.text(8, -3, 'Inside Pitchfork Fit RMSE: {:.3}\nInside Pitchfork Fit Slope: {:.3}'.format(RMSE, m))
+
+    plt.savefig(".".join(npz_names[-1].split('/')[-1].split('.')[:7]) + ".avg_val.png")
     plt.show()
 
 def plot_flavors(npz_name, multi=False):
