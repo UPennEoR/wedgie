@@ -495,9 +495,9 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
                 zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                 zenith.compute(aa)
                 if i==0 and baselength==baselengths[0] and antpair==antdict[baselength][0]:
-                    lst_range.append(lst)
+                    lst_range.append(str(lst))
                 if i==ntimes-1 and baselength==baselengths[0] and antpair==antdict[baselength][0]:
-                    lst_range.append(lst)
+                    lst_range.append(str(lst))
                 if i==0:
                     continue
 
@@ -847,13 +847,15 @@ def plot_timeavg(npz_name, multi=False):
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
     plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0], vmin=-3.0, vmax=1.0)
-    plt.xlabel("Delay (ns)")
-    plt.ylabel("Baseline length (short to long)")
+    plt.xlabel("Delay (ns)", size='medium')
+    plt.ylabel("Baseline length (m)", size='medium')
     cbar = plt.colorbar()
     cbar.set_label("log10((mK)^2)")
     plt.xlim((-450,450))
     npz_name = npz_name.split('/')[-1]
-    plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
+    plt.suptitle('JD '+npz_name.split('.')[1]+' LST '+plot_data['lst'][0]+' to '+plot_data['lst'][-1], size='large')
+    plt.title(npz_name.split('.')[3], size='medium')
+    plt.yticks(np.arange(len(plot_data['bls'])), [round(n,1) for n in plot_data['bls']])
 
     #calculate light travel time for each baselength
     light_times = []
