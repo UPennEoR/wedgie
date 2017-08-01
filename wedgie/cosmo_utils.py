@@ -3,6 +3,7 @@ import gen_utils as gu
 from astropy.cosmology import Planck15 as cosmo
 from astropy import units as u
 from astropy import constants as c
+import aipy
 
 # options for cosmologies: ["FLRW", "LambdaCDM", "FlatLambdaCDM", "wCDM", "FlatwCDM",
 #           "Flatw0waCDM", "w0waCDM", "wpwaCDM", "w0wzCDM", "WMAP5", "WMAP7",
@@ -18,6 +19,18 @@ HERA_BEAM_POLY = np.array([  8.07774113e+08,  -1.02194430e+09,
 
 HERA_OP_OPP = 2.175 # See HERA Memo #27
 PAPER_OP_OPP = 2.35
+
+NOISE_EQUIV_BW = {
+    'blackman': 1.73,
+    'blackman-harris': 2.01,
+    'gaussian0.4': 1.45,
+    'hamming': 1.37,
+    'hanning': 1.50,
+    'kaiser2': 1.50,
+    'kaiser3': 1.80,
+    'parzen': 1.33,
+    'none': 1,
+}
 
 # Cosmology routines
 
@@ -50,6 +63,12 @@ def dL_dth(z):
     #0.00291 == aipy.const.arcmin
     return 1.9 * (1./0.000291) * np.power((1+z)/10.,0.2) *u.Mpc/(u.radian)
 
+def X2Y(z):
+    """
+    [h^-3 Mpc^3] / [str * GHz] scalar conversion between observing and cosmological coordinates
+    """
+    return np.power(dL_dth(z),2.) * dL_df(z)
+
 def dk_du(z):
     """
     2pi * [h Mpc^-1] / [wavelengths], valid for u >> 1.
@@ -68,6 +87,16 @@ def eta2kpl(etas,z):
     Convert an array of etas (freq^-1) to k_parallel (h/Mpc)
     """
     return dk_deta(z) * etas
+
+
+def jy2T(f, bm_poly=HERA_BEAM_POLY):
+    """
+    Return [mK] / [Jy] for a beam size vs. frequency (in GHz) defined by the
+    polynomial bm_poly.  Default is a poly fit to the HERA primary beam.
+    """
+    lam = c.c/ (f*u.GHz)
+    bm = np.polyval(bm_poly, f)
+    return 1e-23 * np.power(lam,2.) / (2 * c.k_B * bm) * 1e3
 
 def freq2kpl(freqs,fold=False):
     """
@@ -100,4 +129,26 @@ def uv2kpr(blmag,cen_fq):
     uvmag = blmag/lam
     kpr = 2*np.pi*uvmag/(cosmo.comoving_transverse_distance(z)*cosmo.h)
     return kpr.to(1./u.Mpc)
+
+def scale2Pk_crude(sq_arr,cen_fq,dfq,avg_scale=0.03):
+    """
+    Crudely scales squared HERA visibilities to an approximate Kelvin^2
+    level using the Beardesley et al. and Parsons et al. HERA Memos:
+    
+    reionization.org/wp-content/uploads/2017/04/HERA19_Tsys_3April2017.pdf,  reionization.org/wp-content/uploads/2013/03/Power_Spectrum_Normalizations_for_HERA.pdf
+    
+    Input: sq_arr: gridded power spectra in raw visibility^2 units
+           cen_fq: central frequency IN GIGAHERTZ
+           dfq: channel width IN GIGAHERTZ
+           avg_scale: divide this number from every antenna to go do Jy
+    """
+    jy2_arr = sq_arr/np.power(avg_scale,2.)
+    fq0 = .150 # GHz
+    z = f2z(fq0)
+    B = dfq * NOISE_EQUIV_BW['none'] #proper normaliztion
+    bm_HERA = np.polyval(HERA_BEAM_POLY, cen_fq) * 2.35
+    scalar_HERA = X2Y(z) * bm_HERA * B #[h^-3 Mpc^3] / [sr * GHz]
+    #XXX I need to double-check the below factors
+    jy_to_mK2_HERA = scalar_HERA * jy2T(cen_fq)**2
+    return jy2_arr*np.power(jy_to_mK2_HERA,2.)
     

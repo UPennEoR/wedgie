@@ -1,6 +1,5 @@
 import argparse
 import wedge_utils as wu
-from IPython import embed
 import multiprocessing
 
 parser = argparse.ArgumentParser()
