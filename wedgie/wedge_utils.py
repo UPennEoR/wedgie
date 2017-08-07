@@ -185,9 +185,9 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
                     zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                     zenith.compute(aa)
                     if i==0 and baseline==sorted(slopedict.keys())[0] and slope==sorted(slopedict[baseline])[0] and pair==slopedict[baseline][slope][0]:
-                        lst_range.append(lst)
+                        lst_range.append(str(lst))
                     if i==ntimes-1 and baseline==sorted(slopedict.keys())[0] and slope==sorted(slopedict[baseline])[0] and pair==sorted(slopedict[baseline][slope])[0]:
-                        lst_range.append(lst)
+                        lst_range.append(str(lst))
                     if i == 0:
                         continue
 
@@ -385,9 +385,9 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
                 zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
                 zenith.compute(aa)
                 if i==0 and length==baselengths[0] and antpair==antdict[length][0]:
-                    lst_range.append(lst)
+                    lst_range.append(str(lst))
                 if i==ntimes-1 and length==baselengths[0] and antpair==antdict[length][0]:
-                    lst_range.append(lst)
+                    lst_range.append(str(lst))
                 if i==0:
                     continue
 
@@ -414,7 +414,7 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
 
     #save filedata as npz
     #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
+    np.savez(npz_name, times=t['times'], wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
     return npz_name
 
 def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
@@ -430,7 +430,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
         npz_name = "{}_{}.stokes{}.{}.{}_{}.timeavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     else:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-        npz_name = "{}_{}.{}.{}.{}_{}.timavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
+        npz_name = "{}_{}.{}.{}.{}_{}.timeavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     print npz_name
 
     t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
@@ -526,8 +526,6 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
 def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
     txx, dxx, fxx = capo.miriad.read_files(files[0], antstr='cross', polstr='xx')
-    txy, dxy, fxy = capo.miriad.read_files(files[1], antstr='cross', polstr='xy')
-    tyx, dyx, fyx = capo.miriad.read_files(files[2], antstr='cross', polstr='yx')
     tyy, dyy, fyy = capo.miriad.read_files(files[3], antstr='cross', polstr='yy')
 
     #calculate I (VI = Vxx + Vyy)
@@ -567,7 +565,12 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
     else:
         wedge_timeavg(args, files[0], 'Q', calfile, history, freq_range, ex_ants, stokes)
     print 'Stokes Q completed.'
-    
+    del txx, dxx, fxx
+    del tyy, dyy, fyy
+
+    tyx, dyx, fyx = capo.miriad.read_files(files[2], antstr='cross', polstr='yx')
+    txy, dxy, fxy = capo.miriad.read_files(files[1], antstr='cross', polstr='xy')
+
     #calculate U (VU = Vxy + Vyx)
     tU = tyx
     dU = {}
@@ -605,6 +608,8 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
     else:
         wedge_timeavg(args, files[2], 'V', calfile, history, freq_range, ex_ants, stokes)
     print 'Stokes V completed.'
+    del tyx, dyx, fyx
+    del txy, dxy, fxy
 
 def wedge_delayavg(npz_name, multi = False):
 
@@ -628,7 +633,9 @@ def wedge_delayavg(npz_name, multi = False):
     return npz_delayavg
 
 # Plotting functions:
-def plot_avgs(npz_names):
+def plot_avgs(npz_names, rng):
+    name = ".".join(npz_names[-1].split('/')[-1].split('.')[:7])
+
     total_files = []
     avgs_in = []
     avgs_out = []
@@ -638,28 +645,47 @@ def plot_avgs(npz_names):
         avgs_in.append(avgs_in_out[0])
         avgs_out.append(avgs_in_out[1])
 
+    plt.figure(figsize=(20, 10))
+
     plot_avgs_out = plt.scatter(total_files, avgs_out)
     plot_avgs_in = plt.scatter(total_files, avgs_in)
     plt.legend((plot_avgs_out, plot_avgs_in), ('Averages Outside Wedge', 'Averages Inside Wedge'))
-
-    x = np.arange(1, len(total_files) + 1)
-    print x
-
-    m, b = np.polyfit(x, avgs_out, 1)
-    plt.plot(x, m * x + b, '-')
-    print m, b
-
-    m, b = np.polyfit(x, avgs_in, 1)
-    plt.plot(x, m * x + b, '-')
-    print m, b
-
-
+  
     plt.xlim(0, len(total_files))
+    plt.xticks(np.arange(0, len(total_files)+4, 2))
+    plt.xlabel('Number of Files Used in Averaging')
+
     plt.ylim(-3.5, 1.5)
+    plt.yticks(np.arange(-3, 2))
+    plt.ylabel('log10((mK)^2)')
 
-    plt.xticks(np.arange(0, len(total_files), 2))
+    plt.title('How Well does the Pitchfork Average Down?')
+    plt.subtitle(name)
 
-    plt.savefig('fig.png')
+    # Setting range to calculate a fit over.
+    # rng = (7, 26)
+    x = np.arange(rng[0], rng[1])
+
+    # Outside RMSE and fit calculation.
+    m, b = np.polyfit(x, avgs_out[rng[0]:rng[1]], 1)
+    fit = np.poly1d([m, b])
+    outside = avgs_out[rng[0]:rng[1]]
+
+    RMSE = gu.RMSE(fit(x), outside)
+    plt.plot(x, m*x + b, '--', color='k')
+    plt.text(8, 0, 'Outside Pitchfork Fit RMSE: {:.3}\nOutside Pitchfork Fit Slope: {:.3}'.format(RMSE, m))
+
+
+    # Inside RMSE and fit calculation.
+    m, b = np.polyfit(x, avgs_in[rng[0]:rng[1]], 1)
+    fit = np.poly1d([m, b])
+    inside = avgs_in[rng[0]:rng[1]]
+
+    RMSE = gu.RMSE(fit(x), inside)
+    plt.plot(x, m*x + b, '--', color='k')
+    plt.text(8, -3, 'Inside Pitchfork Fit RMSE: {:.3}\nInside Pitchfork Fit Slope: {:.3}'.format(RMSE, m))
+
+    plt.savefig(name + ".avg_val.png")
     plt.show()
 
 def plot_flavors(npz_name, multi=False):
@@ -783,7 +809,11 @@ def plot_blavg(npz_name):
 
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
-    t_start = plot_data['wdgslc'][0].shape[0]
+#    t_start = plot_data['wdgslc'][0].shape[0]
+#    t_end = 0
+    #format time scale in minutes
+    t_start = (plot_data['times'][-1] - plot_data['times'][0]) * 24*60
+    t_end = 0
 
     #create subplot to plot data
     f,axarr = plt.subplots(len(plot_data['wdgslc']),1,sharex=True,sharey=True)
@@ -793,8 +823,9 @@ def plot_blavg(npz_name):
     plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', 
                     right='off')
     plt.xlabel("Delay (ns)")
-    plt.ylabel("Time")
-    plt.title(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3])
+    plt.ylabel("Time (min)")
+    plt.suptitle('JD '+npz_name.split('.')[1]+' LST '+str(plot_data['lst'][0])+' to '+str(plot_data['lst'][-1]), size='large')
+    plt.title(npz_name.split('.')[3], size='medium')
 
     #calculate light travel time for each baselength
     light_times = []
@@ -804,15 +835,16 @@ def plot_blavg(npz_name):
     #plot individual wedge slices
     for i in range(len(plot_data['wdgslc'])):
         #plot the graph
-        im = axarr[i].imshow(plot_data['wdgslc'][i], aspect='auto',interpolation='nearest', vmin=-9, vmax= 1, extent=[d_start,d_end,t_start,0])
+        im = axarr[i].imshow(plot_data['wdgslc'][i], aspect='auto',interpolation='nearest', vmin=-9, vmax= 1, extent=[d_start,d_end,t_start,t_end])
         #plot light delay time lines
         light_time = (plot_data['bls'][i])/sc.c*10**9
-        x1, y1 = [light_time, light_time], [0, np.shape(plot_data['wdgslc'][i])[0]] 
-        x2, y2 = [-light_time, -light_time], [0, np.shape(plot_data['wdgslc'][i])[0]]
+        x1, y1 = [light_time, light_time], [t_start, t_end] 
+        x2, y2 = [-light_time, -light_time], [t_end, t_start]
         axarr[i].plot(x1, y1, x2, y2, color = 'white') 
 
     cax,kw = mpl.colorbar.make_axes([ax for ax in axarr.flat])
-    plt.colorbar(im, cax=cax, **kw)
+    cbar = plt.colorbar(im, cax=cax, **kw)
+    cbar.set_label('log10(mK)')
     
     #scale x axis to the significant information
     axarr[0].set_xlim(-450,450)
