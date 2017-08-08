@@ -645,7 +645,7 @@ def plot_avgs(npz_names, rng):
         avgs_in.append(avgs_in_out[0])
         avgs_out.append(avgs_in_out[1])
 
-    plt.figure(figsize=(20, 10))
+    plt.figure(figsize=(15, 10))
 
     plot_avgs_out = plt.scatter(total_files, avgs_out)
     plot_avgs_in = plt.scatter(total_files, avgs_in)
@@ -659,8 +659,8 @@ def plot_avgs(npz_names, rng):
     plt.yticks(np.arange(-3, 2))
     plt.ylabel('log10((mK)^2)')
 
-    plt.title('How Well does the Pitchfork Average Down?')
-    plt.subtitle(name)
+    plt.title(name)
+    plt.suptitle('How Well does the Pitchfork Average Down?')
 
     # Setting range to calculate a fit over.
     # rng = (7, 26)
