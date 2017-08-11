@@ -48,7 +48,11 @@ elif args.multi_plot:
             baselines = [int(x) for x in args.plot_1D.split(',')]
         wedge_utils.plot_multi_1D(args.filenames, baselines)
     else:
-        wedge_utils.plot_multi_timeavg(args.filenames)
+        if len(args.filenames) > 1:
+            for index in range(0, len(args.filenames), 4):
+                wedge_utils.plot_multi_timeavg(args.filenames[index:index+4])
+        else:
+            wedge_utils.plot_timeavg(args.filenames)
 
 elif args.multi_bl_plot:
     wedge_utils.plot_multi_blavg(args.filenames)
