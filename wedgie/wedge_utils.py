@@ -458,7 +458,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     #get vis^2 for each baselength
     for baselength in baselengths:
 
-        vissq_per_bl = np.zeros((ntimes // 2 ,nchan))
+        vissq_per_bl = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
         
         #go through each individual antenna pair
         for antpair in antdict[baselength]:
@@ -480,7 +480,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
             ftd_2D_data = np.ma.array(_dw)
 
             #holds our data
-            vissq_per_antpair = np.zeros((ntimes // 2 ,nchan))
+            vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
 
             #multiply at times (1*2, 3*4, etc...) 
             for i in range(ntimes):
@@ -513,7 +513,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
         #compute average for baseline length, average over time, and store in wedgeslices
         vissq_per_bl /= len(antdict[baselength])
-        wedgeslices.append(np.log10(np.fft.fftshift(np.mean(np.abs(vissq_per_bl), axis=0))))
+        wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(vissq_per_bl, axis=0)))))
         print 'Wedgeslice for baseline {} complete.'.format(baselength)
 
     #get delays
@@ -899,7 +899,7 @@ def plot_multi_timeavg(npz_names):
 
     plt.tight_layout()
     plt.savefig(npz_names[0][:-3] + "multi.png")
-    plt.show()
+    # plt.show()
 
 def plot_delayavg(npz_delayavg):
     
