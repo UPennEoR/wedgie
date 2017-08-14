@@ -11,6 +11,7 @@ import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
 import matplotlib.image as mpimg
+from time import time
 
 # Repeated Operations for Wedge Creation
 def cleanfft(d, f, pair, pol, clean):
@@ -31,7 +32,7 @@ def cleanfft(d, f, pair, pol, clean):
 
     return ftd_2D_data
 
-def name_npz(args, files, pol, tag):
+def name_npz(args, files, pol, ex_ants, tag):
     """Formats the name of the npz file depending on which type of wedge is being made"""
     args = vars(args)
 
@@ -43,8 +44,12 @@ def name_npz(args, files, pol, tag):
     HH = [file_start[4]]
     ext = [file_start[5]]
     pol = [pol]
-    ex_ants = ['_'.join(args['ex_ants'].split(','))]
     tag = [tag]
+
+    if ex_ants:
+        ex_ants = ['_'.join(args['ex_ants'].split(','))]
+    else:
+        ex_ants = []
 
     npz_name = zen_day + time_range + pol + HH + ex_ants + ext + tag + ["npz"]
     npz_name = '.'.join(npz_name)
@@ -142,12 +147,12 @@ def get_baselines(calfile, ex_ants):
 
     return (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
 
-# Format Stokes Parameters
-def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
-    txx, dxx, fxx = capo.miriad.read_files(files[0], antstr='cross', polstr='xx')
-    tyy, dyy, fyy = capo.miriad.read_files(files[3], antstr='cross', polstr='yy')
+# Forming Stokes Paramters
+def stokesI(files):
+    txx, dxx, fxx = capo.miriad.read_files(files['xx'], antstr='cross', polstr='xx')
+    tyy, dyy, fyy = capo.miriad.read_files(files['yy'], antstr='cross', polstr='yy')
 
-    #calculate I (VI = Vxx + Vyy)
+    # Calculate I (VI = Vxx + Vyy)
     tI = txx
     dI = {}
     fI = {}
@@ -155,18 +160,16 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
         dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
         fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
 
-    stokes = [tI, dI, fI]
-    if args.flavors:
-        wedge_flavors(args, files[0], 'I', calfile, history, freq_range, ex_ants, stokes)
-    elif args.blavg:
-        wedge_blavg(args, files[0], 'I', calfile, history, freq_range, ex_ants, stokes)
-    elif args.bl_num:
-        wedge_bltype(args, files[0], 'I', calfile, history, freq_range, ex_ants, stokes)
-    else:
-        wedge_timeavg(args, files[0], 'I', calfile, history, freq_range, ex_ants, stokes)
-    print 'Stokes I completed.'
+    del txx, dxx, fxx
+    del tyy, dyy, fyy
 
-    #calculate Q (VQ = Vxx - Vyy)
+    return tI, dI, fI
+
+def stokesQ(files):
+    txx, dxx, fxx = capo.miriad.read_files(files['xx'], antstr='cross', polstr='xx')
+    tyy, dyy, fyy = capo.miriad.read_files(files['yy'], antstr='cross', polstr='yy')
+
+    # Calculate Q (VQ = Vxx - Vyy)
     tQ = tyy
     dQ = {}
     fQ = {}
@@ -174,23 +177,16 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
         dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
         fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
 
-    stokes = [tQ, dQ, fQ]
-    if args.flavors:
-        wedge_flavors(args, files[0], 'Q', calfile, history, freq_range, ex_ants, stokes)
-    elif args.blavg:
-        wedge_blavg(args, files[0], 'Q', calfile, history, freq_range, ex_ants, stokes)
-    elif args.bl_num:
-        wedge_bltype(args, files[0], 'Q', calfile, history, freq_range, ex_ants, stokes)
-    else:
-        wedge_timeavg(args, files[0], 'Q', calfile, history, freq_range, ex_ants, stokes)
-    print 'Stokes Q completed.'
     del txx, dxx, fxx
     del tyy, dyy, fyy
 
-    tyx, dyx, fyx = capo.miriad.read_files(files[2], antstr='cross', polstr='yx')
-    txy, dxy, fxy = capo.miriad.read_files(files[1], antstr='cross', polstr='xy')
+    return tQ, dQ, fQ
 
-    #calculate U (VU = Vxy + Vyx)
+def stokesU(files):
+    tyx, dyx, fyx = capo.miriad.read_files(files['yx'], antstr='cross', polstr='yx')
+    txy, dxy, fxy = capo.miriad.read_files(files['xy'], antstr='cross', polstr='xy')
+
+    # Calculate U (VU = Vxy + Vyx)
     tU = tyx
     dU = {}
     fU = {}
@@ -198,16 +194,14 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
         dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
         fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
 
-    stokes = [tU, dU, fU]
-    if args.flavors:
-        wedge_flavors(args, files[2], 'U', calfile, history, freq_range, ex_ants, stokes)
-    elif args.blavg:
-        wedge_blavg(args, files[2], 'U', calfile, history, freq_range, ex_ants, stokes)
-    elif args.bl_num:
-        wedge_bltype(args, files[2], 'U', calfile, history, freq_range, ex_ants, stokes)
-    else:
-        wedge_timeavg(args, files[2], 'U', calfile, history, freq_range, ex_ants, stokes)
-    print 'Stokes U completed.'
+    del tyx, dyx, fyx
+    del txy, dxy, fxy
+
+    return tU, dU, fU
+
+def stokesV(files):
+    tyx, dyx, fyx = capo.miriad.read_files(files['yx'], antstr='cross', polstr='yx')
+    txy, dxy, fxy = capo.miriad.read_files(files['xy'], antstr='cross', polstr='xy')
 
     #calculate V (VV = -i*Vxy + i*Vyx)
     tV = txy
@@ -217,31 +211,21 @@ def wedge_stokes(args, files, calfile, history, freq_range, ex_ants):
         dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
         fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
 
-    stokes = [tV, dV, fV]
-    if args.flavors:
-        wedge_flavors(args, files[2], 'V', calfile, history, freq_range, ex_ants, stokes)
-    elif args.blavg:
-        wedge_blavg(args, files[2], 'V', calfile, history, freq_range, ex_ants, stokes)
-    elif args.bl_num:
-        wedge_bltype(args, files[2], 'V', calfile, history, freq_range, ex_ants, stokes)
-    else:
-        wedge_timeavg(args, files[2], 'V', calfile, history, freq_range, ex_ants, stokes)
-    print 'Stokes V completed.'
     del tyx, dyx, fyx
     del txy, dxy, fxy
 
-# Data Analysis Functions:
-def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
-    """
-    Plots wedges per baseline length, averaged over baselines and time
-    if stokes is specified, then it should be of form [t, d, f]
-    """
-    npz_name = name_npz(args, files, pol, 'timeavg')
+    return tV, dV, fV
 
-    if len(stokes):
-        t, d, f = stokes[0], stokes[1], stokes[2]
-    else:
+# Data Analysis Functions:
+def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants):
+    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'timeavg')
+
+    if pol in ['I', 'Q', 'U', 'V']:
+        exec('t, d, f = stokes{}(files)'.format(pol))
+    elif pol in ['xx', 'xy', 'yx', 'yy']:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
+    else:
+        raise Exception('Polarization Not Recognized')
 
     t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
 
@@ -273,12 +257,12 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
         for antpair in antdict[baselength]:
             vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
 
-            #create/get metadata    
-            uv = aipy.miriad.UV(files[0])
+            # Create Metadata    
+            uv = aipy.miriad.UV(files[files.keys()[0]][0])
             aa = aipy.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan']) 
             del(uv)
 
-            #CLEAN and fft the data
+            # FFT and CLEAN
             ftd_2D_data = cleanfft(d, f, antpair, pol, clean=1e-3)
 
             #multiply at times (1*2, 3*4, etc...) 
@@ -323,17 +307,15 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
     return npz_name
 
-def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
-    """
-    Plots wedges per baseline length, averaged over baselines.
-    Remember to not include the ".py" in the name of the calfile
-    """
-    npz_name = name_npz(args, files, pol, 'blavg')
+def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants):
+    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'blavg')
 
-    if len(stokes):
-        t, d, f = stokes[0], stokes[1], stokes[2]
-    else:
+    if pol in ['I', 'Q', 'U', 'V']:
+        exec('t, d, f = stokes{}(files)'.format(pol))
+    elif pol in ['xx', 'xy', 'yx', 'yy']:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
+    else:
+        raise Exception('Polarization Not Recognized')
 
     t['freqs'] = t['freqs'][freq_range[0]:freq_range[1]]
     ntimes,nchan = len(t['times']),len(t['freqs'])
@@ -363,7 +345,7 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
         for antpair in antdict[length]:
 
             #create/get metadata    
-            uv = aipy.miriad.UV(files[0])
+            uv = aipy.miriad.UV(files[files.keys()[0]][0])
             aa = aipy.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan']) 
             del(uv)
 
@@ -419,13 +401,15 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
     np.savez(npz_name, times=t['times'], wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
     return npz_name
 
-def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
-    npz_name = name_npz(args, files, pol, 'flavors')
+def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants):
+    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'flavors')
 
-    if len(stokes):
-        t, d, f = stokes
+    if pol in ['I', 'Q', 'U', 'V']:
+        exec('t, d, f = stokes{}(files)'.format(pol))
+    elif pol in ['xx', 'xy', 'yx', 'yy']:
+        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
     else:
-        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol) 
+        raise Exception('Polarization Not Recognized')
 
     t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
     for key in d.keys():
@@ -450,7 +434,7 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
             for pair in slopedict[baseline][slope]:
                 vis_sq_pair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
 
-                uv = aipy.miriad.UV(files[0])
+                uv = aipy.miriad.UV(files[files.keys()[0]][0])
                 aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan'])
                 del(uv)
                 
@@ -493,15 +477,17 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselines, slps=slopes, prs=pairs, slpdct=slopedict, lst=lst_range, hist=history)
     return npz_name
 
-def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
+def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants):
     bl_num = args.bl_num
-    npz_name = name_npz(args, files, pol, 'bl{}'.format(bl_num))
+    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'bl{}'.format(bl_num))
 
 
-    if len(stokes):
-        t, d, f = stokes[0], stokes[1], stokes[2]
-    else:
+    if pol in ['I', 'Q', 'U', 'V']:
+        exec('t, d, f = stokes{}(files)'.format(pol))
+    elif pol in ['xx', 'xy', 'yx', 'yy']:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
+    else:
+        raise Exception('Polarization Not Recognized')
 
     bl_num -= 1
 
@@ -532,7 +518,7 @@ def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes
         vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
         
         #create/get metadata    
-        uv = aipy.miriad.UV(files[0])
+        uv = aipy.miriad.UV(files[files.keys()[0]][0])
         aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan']) 
         del(uv)
 

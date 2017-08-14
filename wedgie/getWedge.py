@@ -4,6 +4,8 @@ from IPython import embed
 import multiprocessing
 
 parser = argparse.ArgumentParser()
+
+# Main Arguemnts
 parser.add_argument('-F',
                     '--filenames',
                     help='Input a list of filenames to be analyzed.',
@@ -16,49 +18,62 @@ parser.add_argument('-C',
 parser.add_argument('-P',
                     '--pol',
                     help='Input a comma-delimited list of polatizations to plot.',
-                    default='stokes')
-parser.add_argument('-f',
-                    '--flavors',
-                    help='Toggle splitting wedgeslices into a per slope per baseline basis.',
-                    action='store_true')
-parser.add_argument('-t',
-                    '--time_avg',
-                    help='Toggle time averaging.',
-                    default=False,
-                    action='store_true')
-parser.add_argument('-x',
+                    default='I,Q,U,V')
+parser.add_argument('-X',
                     '--ex_ants',
                     help='Input a comma-delimited list of antennae to exclude from analysis.',
                     type=str)
-parser.add_argument('-s',
+
+# Parameters for Changing What is Analyzed
+parser.add_argument('-S',
                     '--step',
                     help='Toggle file stepping.',
+                    default=False,
                     type=int)
+parser.add_argument('-A',
+                    '--stair',
+                    help='Compute npz files for 1 file, then 2 files, then 3 files, ...',
+                    default=False,
+                    action='store_true')
 parser.add_argument('-L',
                     '--load',
                     help='How many processes to run at once.',
                     type=int,
                     default=1)
-parser.add_argument('-r',
+parser.add_argument('-R',
                     '--freq_range',
                     help='Input a range of frequency channels to use separated by an underscore: "550_650"',
                     default='0_1023')
-parser.add_argument('-a',
-                    '--stair',
-                    help='Compute npz files for 1 file, then 2 files, then 3 files, ...',
+
+# Types of Wedges
+# Only One Can Be Used
+parser.add_argument('-t',
+                    '--timeavg',
+                    help='Toggle time averaging.',
+                    default=False,
                     action='store_true')
-parser.add_argument('-d',
-                    '--delay_avg',
-                    help="sfsdfasdfsf",
-                    action="store_true")
 parser.add_argument('-b',
                     '--blavg',
                     help='Toggle blavg for stokes.',
+                    default=False,
+                    action='store_true')
+parser.add_argument('-f',
+                    '--flavors',
+                    help='Toggle splitting wedgeslices into a per slope per baseline basis.',
+                    default=False,
                     action='store_true')
 parser.add_argument('-l',
                     '--bl_num',
                     help='Toggle bltype and input 1 baseline type.',
+                    default=False,
                     type=int)
+
+# Delay Average (Pitchfork --> Wedge)
+parser.add_argument('-d',
+                    '--delay_avg',
+                    help="sfsdfasdfsf",
+                    default=False,
+                    action="store_true")
 args = parser.parse_args()
 
 class Batch:
@@ -71,30 +86,39 @@ class Batch:
         self.history = vars(args)
         
         self.files = None
-        self.pols = None
-        self.pol_type = None
+        self.ex_ants = []
+        self.pols = []
+        self.pol_type = []
+
+        self.arg_pols = [pol for pol in self.args.pol.split(',')]
         self.calfile = args.calfile.split('.')[0]
         self.freq_range = (int(args.freq_range.split('_')[0]), int(args.freq_range.split('_')[1]))
-        self.ex_ants = []
+
 
         # Generate ex_ants list from args.ex_ants.
-        if args.ex_ants is not None:
+        if args.ex_ants:
             self.ex_ants = map(int, args.ex_ants.split(','))
 
         # Format the polarizations to be used from args.pol.
-        self.pols = [pol.lower() for pol in self.args.pol.split(',')]
-        num_pols = len(self.pols)
+        stokes_pols = ['I', 'Q', 'U', 'V']
+        standard_pols = ['xx','xy','yx','yy']
 
-        if self.pols == ['stokes']:
-            self.pols = ['xx','xy','yx','yy']
+        if any(pol in self.arg_pols for pol in stokes_pols):
             self.pol_type = 'stokes'
-        elif num_pols == 1:
-            self.pol_type = 'single'
-        elif num_pols > 1:
-            self.pol_type = 'multi'
+
+            if ('I' in self.arg_pols) or ('Q' in self.arg_pols):
+                self.pols.extend(['xx', 'yy'])
+            if ('U' in self.arg_pols) or ('V' in self.arg_pols):
+                self.pols.extend(['xy', 'yx'])
+
+        elif any(pol in self.arg_pols for pol in standard_pols):
+            self.pol_type = 'standard'
+            self.pols = self.arg_pols
+
+        self.pols.sort()
 
         # Generates correct file names depending on polarization chosen and files given.
-        self.files = []
+        self.files = {}
         for pol in self.pols:
 
             pol_files = []
@@ -105,7 +129,7 @@ class Batch:
                 if not new_file in pol_files:
                     pol_files.append(new_file)
 
-            self.files.append(pol_files)
+            self.files[pol] = pol_files
 
     def __repr__(self):
         """
@@ -119,28 +143,37 @@ class Batch:
         Based on the arguments passed when this instance of the Batch class was initialized 
         this function decides which functions from wedge_utils.py to execute.
         """
+        if self.args.delay_avg:
+            for file in self.files[0]:
+                 wu.wedge_delayavg(file)
+
         if self.pol_type == 'stokes':
-                wu.wedge_stokes(self.args, self.files, self.calfile, self.history, self.freq_range, self.ex_ants)
+            for i in self.arg_pols:
+                if args.timeavg:
+                    wu.wedge_timeavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                elif args.blavg:
+                    wu.wedge_blavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                elif args.flavors:
+                    wu.wedge_flavors(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                elif args.bl_num:
+                    wu.wedge_bltype(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                else:
+                    raise Exception('You must choose a wedge type (timeavg, blavg, flavors, bl_num)')
 
-        elif self.pol_type == 'multi':
-            for i in range(len(pols)):
-                if self.args.flavors:
-                    wu.wedge_flavors(self.args, self.files[i], self.pols[i], self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif self.args.time_avg:
-                    wu.wedge_timeavg(self.args, self.files[i], self.pols[i], self.calfile, self.history, self.freq_range, self.ex_ants)
+        elif self.pol_type == 'standard':
+            for i in self.arg_pols:
+                if args.timeavg:
+                    wu.wedge_timeavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                elif args.blavg:
+                    wu.wedge_blavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                elif args.flavors:
+                    wu.wedge_flavors(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                elif args.bl_num:
+                    wu.wedge_bltype(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+                else:
+                    raise Exception('You must choose a wedge type (timeavg, blavg, flavors, bl_num)')
 
-        elif self.pol_type == 'single':
-            if self.args.delay_avg:
-                for file in self.files[0]:
-                    wu.wedge_delayavg(file)
-            elif self.args.flavors:
-                wu.wedge_flavors(self.args, self.files[0], self.pols[0], self.calfile, self.history, self.freq_range, self.ex_ants)
-            elif self.args.time_avg:
-                wu.wedge_timeavg(self.args, self.files[0], self.pols[0], self.calfile, self.history, self.freq_range, self.ex_ants)
-            else:
-                wu.wedge_blavg(self.args, self.files[0], self.pols[0], self.calfile, self.history, self.freq_range, self.ex_ants)
-
-if args.step is not None:
+if args.step:
     step, files = args.step, args.filenames
     del args.step, args.filenames
 
