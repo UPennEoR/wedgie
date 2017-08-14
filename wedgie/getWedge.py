@@ -23,9 +23,9 @@ parser.add_argument('-f',
                     action='store_true')
 parser.add_argument('-t',
                     '--time_avg',
-                    help='Toggle off time averaging.',
-                    default=True,
-                    action='store_false')
+                    help='Toggle time averaging.',
+                    default=False,
+                    action='store_true')
 parser.add_argument('-x',
                     '--ex_ants',
                     help='Input a comma-delimited list of antennae to exclude from analysis.',

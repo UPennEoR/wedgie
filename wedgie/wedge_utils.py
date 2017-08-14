@@ -12,6 +12,45 @@ import gen_utils as gu
 import cosmo_utils as cu
 import matplotlib.image as mpimg
 
+def cleanfft(d, f, pair, pol, clean):
+    """Performs the fft with a pair for a polarization with a blackman-harris window andv performs the CLEAN"""
+
+    # fft
+    w = aipy.dsp.gen_window(d[pair][pol].shape[-1], window='blackman-harris')
+    _dw = np.fft.ifft(d[pair][pol] * w)
+
+    # CLEAN
+    _ker= np.fft.ifft(f[pair][pol] * w)
+    gain = aipy.img.beam_gain(_ker)
+    for time in range(_dw.shape[0]):
+        _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
+        _dw[time, :] += info['res'] / gain
+
+    ftd_2D_data = np.ma.array(_dw)
+
+    return ftd_2D_data
+
+def name_npz(args, files, pol, tag):
+    args = vars(args)
+
+    file_start = files[0].split('/')[-1].split('.')
+    file_end = files[-1].split('/')[-1].split('.')
+
+    zen_day = file_start[:2]
+    time_range = ['{}_{}'.format(file_start[2], file_end[2])]
+    HH = [file_start[4]]
+    ext = [file_start[5]]
+    pol = [pol]
+    ex_ants = ['_'.join(args['ex_ants'].split(','))]
+    tag = [tag]
+
+    npz_name = zen_day + time_range + pol + HH + ex_ants + ext + tag + ["npz"]
+    npz_name = '.'.join(npz_name)
+    print npz_name
+
+    return npz_name
+
+
 # Calfile specific Operations:
 def calculate_slope(antennae, pair):
     decimal.getcontext().prec = 6
@@ -127,16 +166,16 @@ def in_out_avg(npz_name):
     return (avg_in, avg_out, num_files)
 
 def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
-    fn1, fn2 = files[0].split('/')[-1].split('.'), files[-1].split('/')[-1].split('.')
-    zen_day_t0, HH_ext, tf = ".".join(fn1[:3]), ".".join(fn1[4:6]), fn2[2]
+    npz_name = name_npz(args, files, pol, 'flavors')
+    if len(stokes) > 1:
+        for param in stokes:
+            wedge_flavors(blah, stokes=[param])
 
     if len(stokes):
         t, d, f = stokes[0], stokes[1], stokes[2]
-        npz_name = "{}_{}.stokes{}.{}.{}_{}.flavors.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
-    else: 
-        t,d,f = capo.miriad.read_files(files, antstr='cross', polstr=pol) 
-        npz_name = "{}_{}.{}.{}.{}_{}.flavors.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
-    print npz_name
+#        t, d, f = get_stokes(files, stokes_param)
+    else:
+        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol) 
 
     t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
     for key in d.keys():
@@ -155,25 +194,17 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
     wedgeslices = []
     for baseline in sorted(slopedict.keys()):
-        vis_sq_baseline = np.zeros((ntimes // 2 ,nchan))
+        vis_sq_baseline = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
         for slope in sorted(slopedict[baseline].keys()):
-            vis_sq_slope = np.zeros((ntimes // 2 ,nchan))
+            vis_sq_slope = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
             for pair in slopedict[baseline][slope]:
-                vis_sq_pair = np.zeros((ntimes // 2, nchan))
+                vis_sq_pair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
 
                 uv = aipy.miriad.UV(files[0])
                 aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan'])
                 del(uv)
                 
-                clean = 1e-3
-                w = aipy.dsp.gen_window(d[pair][pol].shape[-1], window='blackman-harris')
-                _dw = np.fft.ifft(d[pair][pol] * w)
-                _ker= np.fft.ifft(f[pair][pol] * w)
-                gain = aipy.img.beam_gain(_ker)
-                for time in range(_dw.shape[0]):
-                    _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
-                    _dw[time, :] += info['res'] / gain
-                ftd_2D_data = np.ma.array(_dw)
+                ftd_2D_data = cleanfft(d, f, pair, pol, clean=1e-3)
 
                 for i in range(ntimes):                     
                     aa.set_active_pol(pol) 
@@ -202,7 +233,7 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
 
             vis_sq_slope /= len(slopedict[baseline])
 
-            wedgeslices.append(np.log10(np.fft.fftshift(np.mean(np.abs(vis_sq_slope), axis=0))))
+            wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(vis_sq_slope, axis=0)))))
             print 'Wedgeslice for baseline {} and slope {} complete.'.format(baseline, slope)
    
     channel_width = (t['freqs'][1] - t['freqs'][0])*10**3 # Channel width in units of GHz
@@ -213,19 +244,14 @@ def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     return npz_name
 
 def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes=[]):
-    
     bl_num = args.bl_num
+    npz_name = name_npz(args, files, pol, 'bl{}'.format(bl_num))
 
-    fn1, fn2 = files[0].split('/')[-1].split('.'), files[-1].split('/')[-1].split('.')
-    zen_day_t0, HH_ext, tf = ".".join(fn1[:3]), ".".join(fn1[4:6]), fn2[2]
 
     if len(stokes):
         t, d, f = stokes[0], stokes[1], stokes[2]
-        npz_name = "{}_{}.stokes{}.{}.{}_{}.bl_{}.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1], bl_num)
     else:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-        npz_name = "{}_{}.{}.{}.{}_{}.bl_{}.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1], bl_num)
-    print npz_name
 
     bl_num -= 1
 
@@ -249,8 +275,11 @@ def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes
 
     length = baselengths[bl_num]
 
-        #access antenna tuples in baselengths dictionary, antpair is antenna tuple
+    #access antenna tuples in baselengths dictionary, antpair is antenna tuple
     for antpair in antdict[baselengths[bl_num]]:
+        
+        #an array to store visibilities^2 per antpair
+        vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
         
         #create/get metadata    
         uv = aipy.miriad.UV(files[0])
@@ -258,19 +287,8 @@ def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants, stokes
         del(uv)
 
         #CLEAN and fft the data
-        clean=1e-3
-        w = aipy.dsp.gen_window(d[antpair][pol].shape[-1], window='blackman-harris')
-        _dw = np.fft.ifft(d[antpair][pol]*w)
-        _ker= np.fft.ifft(f[antpair][pol]*w)
-        gain = aipy.img.beam_gain(_ker)
-        for time in range(_dw.shape[0]):
-            _dw[time,:],info = aipy.deconv.clean(_dw[time,:], _ker[time,:], tol=clean)
-            _dw[time,:] += info['res']/gain
+        totald = cleanfft(d, f, antpair, pol, clean=1e-3)
 
-        totald = np.ma.array(_dw)
-
-        #an array to store visibilities^2 per antpair
-        vissq_per_antpair = np.zeros((ntimes // 2 ,nchan))
 
         #multiply at times (1*2, 3*4, etc...) 
         for i in range(ntimes):
@@ -312,17 +330,12 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
     Plots wedges per baseline length, averaged over baselines.
     Remember to not include the ".py" in the name of the calfile
     """
-    
-    fn1, fn2 = files[0].split('/')[-1].split('.'), files[-1].split('/')[-1].split('.')
-    zen_day_t0, HH_ext, tf = ".".join(fn1[:3]), ".".join(fn1[4:6]), fn2[2]
+    npz_name = name_npz(args, files, pol, 'blavg')
 
     if len(stokes):
         t, d, f = stokes[0], stokes[1], stokes[2]
-        npz_name = "{}_{}.stokes{}.{}.{}_{}.blavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     else:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-        npz_name = "{}_{}.{}.{}.{}_{}.blavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
-    print npz_name
 
     t['freqs'] = t['freqs'][freq_range[0]:freq_range[1]]
     ntimes,nchan = len(t['times']),len(t['freqs'])
@@ -345,8 +358,8 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
     #for each baselength in the dictionary
     for length in baselengths:
         
-        totald = np.zeros_like(d[antdict[length][0]][pol]) #variable to store cumulative fft data
-        vissq_per_bl = np.zeros((ntimes // 2 ,nchan))
+        totald = np.zeros_like(d[antdict[length][0]][pol], dtype=np.complex128) #variable to store cumulative fft data
+        vissq_per_bl = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
 
         #cycle through every ant pair of the given baselength
         for antpair in antdict[length]:
@@ -358,19 +371,10 @@ def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants, stokes=
 
 
             #CLEAN and fft the data
-            clean=1e-3
-            w = aipy.dsp.gen_window(d[antpair][pol].shape[-1], window='blackman-harris')
-            _dw = np.fft.ifft(d[antpair][pol]*w)
-            _ker= np.fft.ifft(f[antpair][pol]*w)
-            gain = aipy.img.beam_gain(_ker)
-            for time in range(_dw.shape[0]):
-                _dw[time,:],info = aipy.deconv.clean(_dw[time,:], _ker[time,:], tol=clean)
-                _dw[time,:] += info['res']/gain
-          
-            totald += np.ma.array(_dw) #WTF IS HAPPENING HERE
+            totald += cleanfft(d, f, antpair, pol, clean=1e-3)
 
             #holds our data
-            vissq_per_antpair = np.zeros((ntimes // 2 ,nchan))
+            vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
 
             #multiply at times (1*2, 3*4, etc...) 
             for i in range(ntimes):
@@ -422,16 +426,12 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
     Plots wedges per baseline length, averaged over baselines and time
     if stokes is specified, then it should be of form [t, d, f]
     """
-    fn1, fn2 = files[0].split('/')[-1].split('.'), files[-1].split('/')[-1].split('.')
-    zen_day_t0, HH_ext, tf = ".".join(fn1[:3]), ".".join(fn1[4:6]), fn2[2]
+    npz_name = name_npz(args, files, pol, 'timeavg')
 
     if len(stokes):
         t, d, f = stokes[0], stokes[1], stokes[2]
-        npz_name = "{}_{}.stokes{}.{}.{}_{}.timeavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
     else:
         t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-        npz_name = "{}_{}.{}.{}.{}_{}.timeavg.npz".format(zen_day_t0, tf, pol, HH_ext, freq_range[0], freq_range[1])
-    print npz_name
 
     t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
 
@@ -469,15 +469,7 @@ def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants, stoke
             del(uv)
 
             #CLEAN and fft the data
-            clean=1e-3
-            w = aipy.dsp.gen_window(d[antpair][pol].shape[-1], window='blackman-harris')
-            _dw = np.fft.ifft(d[antpair][pol]*w)
-            _ker= np.fft.ifft(f[antpair][pol]*w)
-            gain = aipy.img.beam_gain(_ker)
-            for time in range(_dw.shape[0]):
-                _dw[time,:],info = aipy.deconv.clean(_dw[time,:], _ker[time,:], tol=clean)
-                _dw[time,:] += info['res']/gain
-            ftd_2D_data = np.ma.array(_dw)
+            ftd_2D_data = cleanfft(d, f, antpair, pol, clean=1e-3)
 
             #holds our data
             vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
@@ -809,8 +801,9 @@ def plot_blavg(npz_name):
 
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
-#    t_start = plot_data['wdgslc'][0].shape[0]
-#    t_end = 0
+    # t_start = plot_data['wdgslc'][0].shape[0]
+    # t_end = 0
+
     #format time scale in minutes
     t_start = (plot_data['times'][-1] - plot_data['times'][0]) * 24*60
     t_end = 0
