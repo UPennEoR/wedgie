@@ -2,7 +2,6 @@
 Module for wedge-creation methods
 """
 import capo, aipy, os, pprint, sys, decimal
-from IPython import embed
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib as mpl
@@ -13,24 +12,128 @@ import cosmo_utils as cu
 import matplotlib.image as mpimg
 
 # Calfile specific Operations:
-def calculate_slope(antennae, pair):
-    decimal.getcontext().prec = 6
-    dy = decimal.Decimal(antennae[pair[1]]['top_y'] - antennae[pair[0]]['top_y'])
-    dx = decimal.Decimal(antennae[pair[1]]['top_x'] - antennae[pair[0]]['top_x'])
-    if dx != 0:
-        slope = float(dy / dx)
-    else:
-        slope = np.inf
 
-    return slope
-
-def calculate_baseline(antennae, pair):
-    decimal.getcontext().prec = 6
-    dx = decimal.Decimal(antennae[pair[0]]['top_x'] - antennae[pair[1]]['top_x'])
-    dy = decimal.Decimal(antennae[pair[0]]['top_y'] - antennae[pair[1]]['top_y'])
-    baseline = (dx**2 + dy**2).sqrt()
+class CalfileArray(object):
+    """
+    An object that contains operations to act
+    on and interpret PAPER/HERA calfiles.
     
-    return float(baseline)
+    Right now only considers coplanar arrays.
+    The z-axis is only used to flag unused
+    antennae (a -ve z position marks this).
+    
+    calfile should be in your PYTHONPATH and
+    passed to this object as a String.
+    """
+    def __init__(self,calfile):
+        if calfile.endswith('.py'):
+            calfile = calfile.split('.py')[0]
+        try:
+            exec("import {cfile} as cal".format(cfile=calfile))
+        except ImportError:
+            raise Exception("Unable to import {cfile}.".format(cfile=calfile))
+        self._antpos = cal.prms['antpos_ideal']
+        self._antennae = self._antpos.keys()
+    
+    @property
+    def antpos(self):
+        """
+        antpos is a nested dict of format 
+            antennaNumber (int):
+                "top_x": xpos
+                "top_y": ypos
+                "top_z": zpos
+        """
+        return self._antpos
+    
+    @antpos.setter
+    def antpos(self,new_dict_of_antpos):
+        self._antpos = new_dict_of_antpos
+    
+    @property
+    def antennae(self):
+        """
+        antennae is an array of ints
+        """
+        return self._antennae
+    
+    @antennae.setter
+    def antennae(self,new_list_of_antennae):
+        self._antennae = new_list_of_antennae
+    
+    def antennae_downselect(self,ex_ants=[]):
+        """
+        Remove flagged antennae with the option to
+        flag more using list of ints ex_ants
+        """
+        ants2keep = []
+        for a in self.antennae:
+            if (self.antpos[a]['top_z'] >= 0.) and (not a in ex_ants):
+                ants2keep.append(a)
+        new_antpos = {}
+        for a in ants2keep:
+            new_antpos[a] = self.antpos[a]
+        self._antennae = ants2keep
+        self._antpos = new_antpos
+    
+    def array_baselines(self):
+        """
+        Get baseline tuples from antennae
+        """
+        idxs = np.triu_indices(len(self.antennae))
+        bl_idxs = zip(idxs)
+        bl_tups = []
+        for tup in bl_idxs:
+            if not tup[0]==tup[1]:
+                # avoid autos XXX should this be optional?
+                bl_tups.append((self.antennae[tup[0]], self.antennae[tup[1]]))
+        return bl_tups
+    
+    def calc_bl_stats(self, bl_tup, sigfig=6):
+        """
+        Calculate baseline slope and magnitude 
+        for bl_tup (ant1,ant2), to "sigfig" (int)
+        significant figures.
+        
+        Returns:
+            slope, magnitude
+        
+        XXX I DON'T LIKE THAT WE'RE USING THE
+        DECIMAL LIBRARY HERE. WOULD LIKE TO 
+        KEEP IT NUMPY ONLY...
+        """
+        decimal.getcontext().prec = sigfig
+        a1,a2 = bl_tup
+        dx = self.antpos[a2]['top_x'] - self.antpos[a1]['top_x']
+        dy = self.antpos[a2]['top_y'] - self.antpos[a1]['top_y']
+        mag = (dx**2 + dy**2).sqrt()
+        if dx == 0.:
+            slope = np.inf
+        else:
+            slope = float(dy/dx)
+        return mag, slope
+    
+    def calc_bl_stats_all(self,sigfig=6, return_all=False):
+        """
+        Calculate baseline slope and magnitude
+        for all baselines in the array.
+        
+        Return_all gives separate arrays of magnitudes
+        and slopes instead of dict of them alone.
+        """
+        baselines = self.array_baselines()
+        Nbls = len(baselines)
+        magnitudes, slopes = np.zeros(Nbls), np.zeros(Nbls)
+        stat_dict = {}
+        for i,bl in enumerate(baselines):
+            mag, slp = self.calc_bl_stats(bl,sigfig=sigfig)
+            magnitudes[i], slopes[i] = mag, slp
+            stat_dict[bl] = (mag,slp)
+        if not return_all:
+            return stat_dict
+        else:
+            return stat_dict, magnitudes, slopes
+        
 
 def get_baselines(calfile, ex_ants):
     """
@@ -40,47 +143,26 @@ def get_baselines(calfile, ex_ants):
     
     Requires cal file to be in PYTHONPATH.
     """
-    try:
-        print 'Reading calfile: %s.' %calfile
-        exec("import {cfile} as cal".format(cfile=calfile))
-        antennae = cal.prms['antpos_ideal']
-    except ImportError:
-        raise Exception("Unable to import {cfile}.".format(cfile=calfile))
+    ca = CalfileArray(calfile)
+    ca.antennae_downselect(ex_ants=ex_ants)
     
-    # Remove all placeholder antennae from consideration
-    # Remove all antennae from ex_ants from consideration
-    ants = []
-    for ant in antennae.keys():
-        if (not antennae[ant]['top_z'] < 0) and (ant not in ex_ants):
-            ants.append(ant)
-
-    # Form pairs of antennae
-    # Store unique baselines and slopes for later use
-    pairs, baselines, slopes =  {}, [], []
-    for ant_i in ants:
-        for ant_j in ants:
-            if (ant_i >= ant_j): continue
-            pair = (ant_i, ant_j)
-
-            baseline = calculate_baseline(antennae, pair)
-            baselines.append(baseline)
-            
-            slope = calculate_slope(antennae, pair)
-            slopes.append(slope)
-            
-            pairs[pair] = (baseline, slope)
-
-    # Remove duplicates baseline and slope values
-    baselines = set(baselines)
-    slopes = set(slopes)
-
-    # Initalize antdict with baselines as keys and empty lists as values
-    antdict = {baseline: [] for baseline in baselines}
-
-    # Add pairs to the list of their respective baseline
-    for pair in pairs:
-        baseline = pairs[pair][0]
-        antdict[baseline].append(pair)
+    # Store baselines and slopes for later use
+    stat_dict, magnitudes, slopes =  ca.calc_bl_stats_all(return_all=True)
+    
+    # Get unique baseline and slope values and create corresponding
+    # mapping dictionary
+    
+    unique_magnitudes = set(magnitudes)
+    unique_slopes = set(slopes)
+    
+    mag2baselines = {mag: [] for mag in unique_magnitudes}
+    slp2mag2baselines = {slp: [] for slp in unique_slopes}
+    
+    for bl in stat_dict.keys():
+        mag,slp = stat_dict[bl]
+        mag2baselines[mag] = bl
+    ### GOT TO HERE
+        #slp2baselines[slp] = 
 
     # Initialize slopedict with baselines for keys and the dictionary of slopes for each value
     slopedict = {}
