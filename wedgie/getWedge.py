@@ -1,3 +1,13 @@
+"""
+
+
+Authors:
+Paul Chichura <pchich_at_sas.upenn.edu>
+Austin Fox Fortino <fortino_at_sas.upenn.edu>
+Amy Igarashi <igarashiamy_at_gmail.com>
+Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
+"""
+
 import argparse
 import wedge_utils as wu
 from IPython import embed

@@ -1,8 +1,14 @@
 """
-Module for wedge-creation methods
+This module contains functions to create and plot wedges/pitchforks from HERA data files.
+
+Authors:
+Paul Chichura <pchich_at_sas.upenn.edu>
+Austin Fox Fortino <fortino_at_sas.upenn.edu>
+Amy Igarashi <igarashiamy_at_gmail.com>
+Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
-import capo, aipy, os, pprint, sys, decimal
-from IPython import embed
+
+import capo, aipy, decimal
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib as mpl
@@ -11,11 +17,13 @@ import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
 import matplotlib.image as mpimg
-from time import time
 
-# Repeated Operations for Wedge Creation
+# For Interactive Development
+from IPython import embed
+
+# Repeated Operations for Wedge Creation:
 def cleanfft(d, f, pair, pol, clean):
-    """Performs the fft with a pair for a polarization with a blackman-harris window andv performs the CLEAN"""
+    """Performs the fft with an antenna pair for a certain polarization with a blackman-harris window, then performs the CLEAN."""
 
     # fft
     w = aipy.dsp.gen_window(d[pair][pol].shape[-1], window='blackman-harris')
@@ -33,7 +41,7 @@ def cleanfft(d, f, pair, pol, clean):
     return ftd_2D_data
 
 def name_npz(args, files, pol, ex_ants, tag):
-    """Formats the name of the npz file depending on which type of wedge is being made"""
+    """Formats the name of the npz file depending on which type of wedge is being made."""
     args = vars(args)
 
     file_start = files[0].split('/')[-1].split('.')
@@ -147,12 +155,12 @@ def get_baselines(calfile, ex_ants):
 
     return (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
 
-# Forming Stokes Paramters
+# Forming Stokes Paramters:
 def stokesI(files):
+    """Calculate I (VI = Vxx + Vyy)"""
     txx, dxx, fxx = capo.miriad.read_files(files['xx'], antstr='cross', polstr='xx')
     tyy, dyy, fyy = capo.miriad.read_files(files['yy'], antstr='cross', polstr='yy')
 
-    # Calculate I (VI = Vxx + Vyy)
     tI = txx
     dI = {}
     fI = {}
@@ -166,10 +174,10 @@ def stokesI(files):
     return tI, dI, fI
 
 def stokesQ(files):
+    """Calculate Q (VQ = Vxx - Vyy)"""
     txx, dxx, fxx = capo.miriad.read_files(files['xx'], antstr='cross', polstr='xx')
     tyy, dyy, fyy = capo.miriad.read_files(files['yy'], antstr='cross', polstr='yy')
 
-    # Calculate Q (VQ = Vxx - Vyy)
     tQ = tyy
     dQ = {}
     fQ = {}
@@ -183,10 +191,10 @@ def stokesQ(files):
     return tQ, dQ, fQ
 
 def stokesU(files):
+    """Calculate U (VU = Vxy + Vyx)"""
     tyx, dyx, fyx = capo.miriad.read_files(files['yx'], antstr='cross', polstr='yx')
     txy, dxy, fxy = capo.miriad.read_files(files['xy'], antstr='cross', polstr='xy')
 
-    # Calculate U (VU = Vxy + Vyx)
     tU = tyx
     dU = {}
     fU = {}
@@ -200,10 +208,10 @@ def stokesU(files):
     return tU, dU, fU
 
 def stokesV(files):
+    """Calculate V (VV = -i*Vxy + i*Vyx)"""
     tyx, dyx, fyx = capo.miriad.read_files(files['yx'], antstr='cross', polstr='yx')
     txy, dxy, fxy = capo.miriad.read_files(files['xy'], antstr='cross', polstr='xy')
 
-    #calculate V (VV = -i*Vxy + i*Vyx)
     tV = txy
     dV = {}
     fV = {}
@@ -561,6 +569,7 @@ def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants):
     np.savez(npz_name, antpairslc=antpairslices, dlys=delays, pol=pol, antprs=antpairs, length=length, hist=history)
     return npz_name
 
+# Create Wedge from Pitchfork
 def wedge_delayavg(npz_name, multi=False):
 
     plot_data = np.load(npz_name)
