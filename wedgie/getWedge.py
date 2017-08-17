@@ -7,11 +7,13 @@ Austin Fox Fortino <fortino_at_sas.upenn.edu>
 Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
-
 import argparse
 import wedge_utils as wu
-from IPython import embed
 import multiprocessing
+from copy import deepcopy
+
+# For Interactive Decelopment
+from IPython import embed
 
 parser = argparse.ArgumentParser()
 
@@ -84,146 +86,176 @@ parser.add_argument('-d',
                     help="sfsdfasdfsf",
                     default=False,
                     action="store_true")
+
 args = parser.parse_args()
 
-class Batch:
+class Batch(object):
     def __init__(self, args):
-        """
-        Runs preliminary formatting of ex_ants list, polarization, and filenames
-        based on given arguments.
-        """
         self.args = args
         self.history = vars(args)
-        
-        self.files = None
-        self.ex_ants = []
-        self.pols = []
-        self.pol_type = []
+        self.calfile = str()
+        self.pols = list()
+        self.pol_type = str()
+        self.file_pols = list()
+        self.files = dict()
+        self.ex_ants = list()
+        self.freq_range = tuple()
+        self.step = int()
+        self.stair = int()
+        self.load = int()
 
-        self.arg_pols = [pol for pol in self.args.pol.split(',')]
-        self.calfile = args.calfile.split('.')[0]
-        self.freq_range = (int(args.freq_range.split('_')[0]), int(args.freq_range.split('_')[1]))
+        self.format_pols()
+        self.format_files()
+        self.format_exants()
+        self.format_freqrange()
+        self.format_calfile()
+        self.create_history()
 
-
-        # Generate ex_ants list from args.ex_ants.
-        if args.ex_ants:
-            self.ex_ants = map(int, args.ex_ants.split(','))
-
-        # Format the polarizations to be used from args.pol.
+    def format_pols(self):
+        """Format the polarizations, e.g.: translating from IQUV to xx,xy,yx,yy"""
         stokes_pols = ['I', 'Q', 'U', 'V']
         standard_pols = ['xx','xy','yx','yy']
 
-        if any(pol in self.arg_pols for pol in stokes_pols):
+        self.pols = self.args.pol.split(',')
+
+        if any(pol in self.pols for pol in stokes_pols):
             self.pol_type = 'stokes'
 
-            if ('I' in self.arg_pols) or ('Q' in self.arg_pols):
-                self.pols.extend(['xx', 'yy'])
-            if ('U' in self.arg_pols) or ('V' in self.arg_pols):
-                self.pols.extend(['xy', 'yx'])
+            if ('I' in self.pols) or ('Q' in self.pols):
+                self.file_pols.extend(['xx', 'yy'])
+            if ('U' in self.pols) or ('V' in self.pols):
+                self.file_pols.extend(['xy', 'yx'])
 
-        elif any(pol in self.arg_pols for pol in standard_pols):
+        elif any(pol in self.pols for pol in standard_pols):
             self.pol_type = 'standard'
-            self.pols = self.arg_pols
+            self.file_pols = self.pols[:]
 
-        self.pols.sort()
-
-        # Generates correct file names depending on polarization chosen and files given.
-        self.files = {}
-        for pol in self.pols:
-
+    def format_files(self):
+        """Generate the filenames from given files and given polarizations"""
+        for pol in self.file_pols:
             pol_files = []
             for file in self.args.filenames:
                 file_pol = file.split('.')[-3]
-                new_file = file.split(file_pol)[0] + pol + file.split(file_pol)[1]
+                pol_file = file.split(file_pol)[0] + pol + file.split(file_pol)[1]
+                pol_files.append(pol_file)
 
-                if not new_file in pol_files:
-                    pol_files.append(new_file)
+            self.files[pol] = sorted(list(set(pol_files)))
 
-            self.files[pol] = pol_files
+    def format_exants(self):
+        """Takes the input ex_ants and creates a list of integers"""
+        if self.args.ex_ants:
+            self.ex_ants = [int(ant) for ant in self.args.ex_ants.split(',')]
 
-    def __repr__(self):
-        """
-        Returns self.history, the arguments passed when this instance of the Batch class 
-        was initialized.
-        """
-        return str(self.history)
+    def format_freqrange(self):
+        """Takes the string of frequency ranges as '550_650' and turns it into a tuple of integers as (550, 650)"""
+        self.freq_range = (int(self.args.freq_range.split('_')[0]), int(self.args.freq_range.split('_')[1]))
+
+    def format_calfile(self):
+        """Remove '.py' from the end of the calfile"""
+        self.calfile = self.args.calfile.split('.py')[0]
+
+    def create_history(self):
+        self.history['filenames'] = self.files
+        self.history['calfile'] = self.calfile
+        self.history['pol'] = self.file_pols
+        self.history['ex_ants'] = self.ex_ants
+        self.history['freq_range'] = self.freq_range
+
+    def stepping(self):
+        self.step = self.args.step
+        self.load = self.args.load
+
+        num_files_unique = len(self.files[self.files.keys()[0]])
+        files_copy = deepcopy(self.files)
+
+        for count, index in enumerate(range(0, num_files_unique, self.step)):
+            for pol in self.file_pols:
+                self.files[pol] = self.files[pol][index : index + self.step]
+
+            self.logic()
+            # if (count+1) % self.load:
+            #     multiprocessing.Process(target=self.logic).start()
+            # else:
+            #     self.logic()
+
+            self.files = deepcopy(files_copy)
+
+    def stairing(self):
+        self.stair = self.args.stair
+        self.load = self.args.load
+
+        num_files_unique = len(self.files[self.files.keys()[0]])
+        files_copy = deepcopy(self.files)
+
+        for count, index in enumerate(range(0, num_files_unique, self.stair)):
+            for pol in self.file_pols:
+                self.files[pol] = self.files[pol][0 : index]
+
+            self.logic()
+            # if (count+1) % self.load:
+            #     multiprocessing.Process(target=self.logic).start()
+            # else:
+            #     self.logic()
+
+            self.files = deepcopy(files_copy)
 
     def logic(self):
-        """
-        Based on the arguments passed when this instance of the Batch class was initialized 
-        this function decides which functions from wedge_utils.py to execute.
-        """
-        if self.args.delay_avg:
-            for file in self.files[0]:
-                 wu.wedge_delayavg(file)
-
         if self.pol_type == 'stokes':
-            for i in self.arg_pols:
-                if args.timeavg:
-                    wu.wedge_timeavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif args.blavg:
-                    wu.wedge_blavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif args.flavors:
-                    wu.wedge_flavors(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif args.bl_num:
-                    wu.wedge_bltype(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+            for pol in self.pols:
+                wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
+                exec('wedge.form_stokes{}()'.format(pol))
+                
+                if self.args.timeavg:
+                    wedge.name_npz('timeavg')
+                    wedge.timeavg()
+
+                elif self.args.blavg:
+                    wedge.name_npz('blavg')
+                    wedge.blavg()
+
+                elif self.args.flavors:
+                    wedge.name_npz('flavors')
+                    wedge.flavors()
+
+                elif self.args.bl_num:
+                    wedge.name_npz('bl{}'.format(self.args.bl_num))
+                    wedge.bltype()
+
                 else:
-                    raise Exception('You must choose a wedge type (timeavg, blavg, flavors, bl_num)')
+                    raise Exception("You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_num=X).")
 
         elif self.pol_type == 'standard':
-            for i in self.arg_pols:
-                if args.timeavg:
-                    wu.wedge_timeavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif args.blavg:
-                    wu.wedge_blavg(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif args.flavors:
-                    wu.wedge_flavors(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
-                elif args.bl_num:
-                    wu.wedge_bltype(self.args, self.files, i, self.calfile, self.history, self.freq_range, self.ex_ants)
+            for pol in self.pols:
+                wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
+                wedge.load_file()
+
+                if self.args.timeavg:
+                    wedge.name_npz('timeavg')
+                    wedge.timeavg()
+
+                elif self.args.blavg:
+                    wedge.name_npz('blavg')
+                    wedge.blavg()
+
+                elif self.args.flavors:
+                    wedge.name_npz('flavors')
+                    wedge.flavors()
+
+                elif self.args.bl_num:
+                    wedge.name_npz('bl{}'.format(self.args.bl_num))
+                    wedge.bltype()
+
                 else:
-                    raise Exception('You must choose a wedge type (timeavg, blavg, flavors, bl_num)')
+                    raise Exception("You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_num=X).")
 
+        else:
+            raise Exception("Polarization type not understood, be sure you have correctly specified the polarizations you want.")
+
+
+zen = Batch(args)
 if args.step:
-    step, files = args.step, args.filenames
-    del args.step, args.filenames
-
-    files_xx = [file for file in files if 'xx' in file]
-    num_files_xx = len(files_xx)
-
-    count = 1
-    for index in range(0, num_files_xx, step):
-        args.filenames = files_xx[index : index + step]
-        zen = Batch(args)
-
-        if count % args.load:
-            multiprocessing.Process(target=zen.logic).start()
-        else:
-            zen.logic()
-
-        count += 1
-
-    print 'Step program complete.'
-
+    zen.stepping()
 elif args.stair:
-    files = args.filenames
-    del args.filenames
-
-    files_xx = [file for file in files if 'xx' in file]
-    num_files_xx = len(files_xx)
-
-    count = 1
-    for index in range(1, num_files_xx):
-        args.filenames = files_xx[0: index]
-        zen = Batch(args)
-        
-        if count % args.load:
-            multiprocessing.Process(target=zen.logic).start()
-        else:
-            zen.logic()
-
-        count += 1
-    print 'Stair program complete.'
-
+    zen.stairing()
 else:
-    zen = Batch(args)
     zen.logic()

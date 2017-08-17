@@ -17,563 +17,413 @@ import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
 import matplotlib.image as mpimg
+from time import time
 
 # For Interactive Development
 from IPython import embed
 
-# Repeated Operations for Wedge Creation:
-def cleanfft(d, f, pair, pol, clean):
-    """Performs the fft with an antenna pair for a certain polarization with a blackman-harris window, then performs the CLEAN."""
+class Wedge(object):
+    def __init__(self, args, files, calfile, pol, ex_ants, freq_range, history):
+        self.args = args
+        self.files = files
+        self.pol = pol
+        self.calfile = calfile
+        self.history = history
+        self.freq_range = freq_range
+        self.ex_ants = ex_ants
 
-    # fft
-    w = aipy.dsp.gen_window(d[pair][pol].shape[-1], window='blackman-harris')
-    _dw = np.fft.ifft(d[pair][pol] * w)
+        self.npz_name = str()
+        self.caldata = tuple()
+        self.info = None
+        self.data = None
+        self.flags = None
+        self.aa = None
+        self.vis_sq_bl = None
+        self.vis_sq_slope = None
+        self.vis_sq_antpair = None
+        self.fft_2Ddata = None
+        self.zenith = None
 
-    # CLEAN
-    _ker= np.fft.ifft(f[pair][pol] * w)
-    gain = aipy.img.beam_gain(_ker)
-    for time in range(_dw.shape[0]):
-        _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
-        _dw[time, :] += info['res'] / gain
-
-    ftd_2D_data = np.ma.array(_dw)
-
-    return ftd_2D_data
-
-def name_npz(args, files, pol, ex_ants, tag):
-    """Formats the name of the npz file depending on which type of wedge is being made."""
-    args = vars(args)
-
-    file_start = files[0].split('/')[-1].split('.')
-    file_end = files[-1].split('/')[-1].split('.')
-
-    zen_day = file_start[:2]
-    time_range = ['{}_{}'.format(file_start[2], file_end[2])]
-    HH = [file_start[4]]
-    ext = [file_start[5]]
-    pol = [pol]
-    tag = [tag]
-
-    if ex_ants:
-        ex_ants = ['_'.join(args['ex_ants'].split(','))]
-    else:
-        ex_ants = []
-
-    npz_name = zen_day + time_range + pol + HH + ex_ants + ext + tag + ["npz"]
-    npz_name = '.'.join(npz_name)
-    print npz_name
-
-    return npz_name
-
-# Calfile Specific Operations:
-def calculate_slope(antennae, pair):
-    """Returns the slope between two antennae given the dictionary of antennae and their positions and the antenna pair in question"""
-    decimal.getcontext().prec = 6
-    dy = decimal.Decimal(antennae[pair[1]]['top_y'] - antennae[pair[0]]['top_y'])
-    dx = decimal.Decimal(antennae[pair[1]]['top_x'] - antennae[pair[0]]['top_x'])
-    if dx != 0:
-        slope = float(dy / dx)
-    else:
-        slope = np.inf
-
-    return slope
-
-def calculate_baseline(antennae, pair):
-    """Returns the baseline length between two antennae given the dictionary of antennae and their positions and the antenna pair in question"""
-    decimal.getcontext().prec = 6
-    dx = decimal.Decimal(antennae[pair[0]]['top_x'] - antennae[pair[1]]['top_x'])
-    dy = decimal.Decimal(antennae[pair[0]]['top_y'] - antennae[pair[1]]['top_y'])
-    baseline = (dx**2 + dy**2).sqrt()
-    
-    return float(baseline)
-
-def get_baselines(calfile, ex_ants):
-    """
-    Returns a dictionary of baseline lengths and the corresponding pairs. The data is based 
-    on a calfile. ex_ants is a list of integers that specify antennae to be exlcuded from 
-    calculation.
-    
-    Requires cal file to be in PYTHONPATH.
-    """
-    try:
-        print 'Reading calfile: %s.' %calfile
-        exec("import {cfile} as cal".format(cfile=calfile))
-        antennae = cal.prms['antpos_ideal']
-    except ImportError:
-        raise Exception("Unable to import {cfile}.".format(cfile=calfile))
-    
-    # Remove all placeholder antennae from consideration
-    # Remove all antennae from ex_ants from consideration
-    ants = []
-    for ant in antennae.keys():
-        if (not antennae[ant]['top_z'] < 0) and (ant not in ex_ants):
-            ants.append(ant)
-
-    # Form pairs of antennae
-    # Store unique baselines and slopes for later use
-    pairs, baselines, slopes =  {}, [], []
-    for ant_i in ants:
-        for ant_j in ants:
-            if (ant_i >= ant_j): continue
-            pair = (ant_i, ant_j)
-
-            baseline = calculate_baseline(antennae, pair)
-            baselines.append(baseline)
-            
-            slope = calculate_slope(antennae, pair)
-            slopes.append(slope)
-            
-            pairs[pair] = (baseline, slope)
-
-    # Remove duplicates baseline and slope values
-    baselines = set(baselines)
-    slopes = set(slopes)
-
-    # Initalize antdict with baselines as keys and empty lists as values
-    antdict = {baseline: [] for baseline in baselines}
-
-    # Add pairs to the list of their respective baseline
-    for pair in pairs:
-        baseline = pairs[pair][0]
-        antdict[baseline].append(pair)
-
-    # Initialize slopedict with baselines for keys and the dictionary of slopes for each value
-    slopedict = {}
-    for baseline in baselines:
-        slopedict[baseline] = {slope: [] for slope in slopes}
-
-    # Add pairs to their respective slope within their respective baseline
-    for pair in pairs:
-        baseline = pairs[pair][0]
-        slope = pairs[pair][1]
-        slopedict[baseline][slope].append(pair)
-
-    for baseline in slopedict.copy():
-        for slope in slopedict[baseline].copy():
-            if slopedict[baseline][slope] == []:
-                del slopedict[baseline][slope]
-
-    return (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
-
-# Forming Stokes Paramters:
-def stokesI(files):
-    """Calculate I (VI = Vxx + Vyy)"""
-    txx, dxx, fxx = capo.miriad.read_files(files['xx'], antstr='cross', polstr='xx')
-    tyy, dyy, fyy = capo.miriad.read_files(files['yy'], antstr='cross', polstr='yy')
-
-    tI = txx
-    dI = {}
-    fI = {}
-    for key in dxx.keys():
-        dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
-        fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
-
-    del txx, dxx, fxx
-    del tyy, dyy, fyy
-
-    return tI, dI, fI
-
-def stokesQ(files):
-    """Calculate Q (VQ = Vxx - Vyy)"""
-    txx, dxx, fxx = capo.miriad.read_files(files['xx'], antstr='cross', polstr='xx')
-    tyy, dyy, fyy = capo.miriad.read_files(files['yy'], antstr='cross', polstr='yy')
-
-    tQ = tyy
-    dQ = {}
-    fQ = {}
-    for key in dxx.keys():
-        dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
-        fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
-
-    del txx, dxx, fxx
-    del tyy, dyy, fyy
-
-    return tQ, dQ, fQ
-
-def stokesU(files):
-    """Calculate U (VU = Vxy + Vyx)"""
-    tyx, dyx, fyx = capo.miriad.read_files(files['yx'], antstr='cross', polstr='yx')
-    txy, dxy, fxy = capo.miriad.read_files(files['xy'], antstr='cross', polstr='xy')
-
-    tU = tyx
-    dU = {}
-    fU = {}
-    for key in dxy.keys():
-        dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
-        fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
-
-    del tyx, dyx, fyx
-    del txy, dxy, fxy
-
-    return tU, dU, fU
-
-def stokesV(files):
-    """Calculate V (VV = -i*Vxy + i*Vyx)"""
-    tyx, dyx, fyx = capo.miriad.read_files(files['yx'], antstr='cross', polstr='yx')
-    txy, dxy, fxy = capo.miriad.read_files(files['xy'], antstr='cross', polstr='xy')
-
-    tV = txy
-    dV = {}
-    fV = {}
-    for key in dxy.keys():
-        dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
-        fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
-
-    del tyx, dyx, fyx
-    del txy, dxy, fxy
-
-    return tV, dV, fV
-
-# Data Analysis Functions:
-def wedge_timeavg(args, files, pol, calfile, history, freq_range, ex_ants):
-    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'timeavg')
-
-    if pol in ['I', 'Q', 'U', 'V']:
-        exec('t, d, f = stokes{}(files)'.format(pol))
-    elif pol in ['xx', 'xy', 'yx', 'yy']:
-        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-    else:
-        raise Exception('Polarization Not Recognized')
-
-    t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
-
-    for key in d.keys():
-        d[key][pol] = d[key][pol][:, freq_range[0]: freq_range[1]]
-        f[key][pol] = f[key][pol][:, freq_range[0]: freq_range[1]]
-
-    #stores vis^2 for each baselength averaged over time
-    wedgeslices = []
-    
-    #get dictionary of antennae pairs
-    #keys are baseline lengths, values are list of tuples (antenna numbers)
-    antdict = get_baselines(calfile, ex_ants)[0]
-    baselengths = antdict.keys()
-    baselengths.sort()
-
-    #get number of times and number of channels
-    ntimes, nchan = len(t['times']), len(t['freqs'])
-
-    dt = np.diff(t['times'])[0] #dJD
-
-    lst_range = []
-
-    #get vis^2 for each baselength
-    for baselength in baselengths:
-        vissq_per_bl = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
+        self.wedgeslices = []
+        self.antpairslices = []
+        self.lst_range =[]
         
-        #go through each individual antenna pair
-        for antpair in antdict[baselength]:
-            vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
+        decimal.getcontext().prec = 6
+        self.calculate_caldata()
 
-            # Create Metadata    
-            uv = aipy.miriad.UV(files[files.keys()[0]][0])
-            aa = aipy.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan']) 
-            del(uv)
+    # Methods common throughout Wedge Creation
+    def name_npz(self, tag):
+        file_start = self.files[self.files.keys()[0]][0].split('/')[-1].split('.')
+        file_end = self.files[self.files.keys()[0]][-1].split('/')[-1].split('.')
 
-            # FFT and CLEAN
-            ftd_2D_data = cleanfft(d, f, antpair, pol, clean=1e-3)
+        zen_day = file_start[:2]
+        time_range = ['{}_{}'.format(file_start[2], file_end[2])]
+        HH = [file_start[4]]
+        ext = [file_start[5]]
+        pol = [self.pol]
+        tag = [tag]
 
-            #multiply at times (1*2, 3*4, etc...) 
-            for i in range(ntimes):
-                 
-                #set up phasing    
-                aa.set_active_pol(pol) 
-                if i!=0:
-                    old_zenith = zenith
-                time = t['times'][i]    
-                aa.set_jultime(time)
-                lst = aa.sidereal_time()
-                zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
-                zenith.compute(aa)
-                if i==0 and baselength==baselengths[0] and antpair==antdict[baselength][0]:
-                    lst_range.append(str(lst))
-                if i==ntimes-1 and baselength==baselengths[0] and antpair==antdict[baselength][0]:
-                    lst_range.append(str(lst))
-                if i==0:
-                    continue
+        npz_name = zen_day + time_range + pol + HH + ext + tag + ["npz"]
 
-                #phase and multiply, store in vissq_per_antpair
-                if i % 2:
-                    _v1 = ftd_2D_data[i-1,:]
-                    phase_correction = np.conj(aa.gen_phs(zenith,antpair[0],antpair[1]))*aa.gen_phs(old_zenith,antpair[0],antpair[1])
-                    _v2 = ftd_2D_data[i,:]*phase_correction[freq_range[0]:freq_range[1]]
-                    vissq_per_antpair[i // 2,:] = np.conj(_v1)*_v2
+        if self.ex_ants:
+            ex_ants = [str(ant) for ant in self.ex_ants]
+            ex_ants = "_".join(ex_ants)
+            npz_name.insert(4, ex_ants)
 
-            #store time average for this baseline length
-            vissq_per_bl += vissq_per_antpair
+        npz_name = '.'.join(npz_name)
 
-        #compute average for baseline length, average over time, and store in wedgeslices
-        vissq_per_bl /= len(antdict[baselength])
-        wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(vissq_per_bl, axis=0)))))
-        print 'Wedgeslice for baseline {} complete.'.format(baselength)
+        self.npz_name = npz_name
 
-    #get delays
-    channel_width = (t['freqs'][1] - t['freqs'][0])*10**3 # Channel width in units of GHz
-    num_bins = len(t['freqs'])
-    delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
-    
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
-    return npz_name
+        print self.npz_name
 
-def wedge_blavg(args, files, pol, calfile, history, freq_range, ex_ants):
-    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'blavg')
-
-    if pol in ['I', 'Q', 'U', 'V']:
-        exec('t, d, f = stokes{}(files)'.format(pol))
-    elif pol in ['xx', 'xy', 'yx', 'yy']:
-        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-    else:
-        raise Exception('Polarization Not Recognized')
-
-    t['freqs'] = t['freqs'][freq_range[0]:freq_range[1]]
-    ntimes,nchan = len(t['times']),len(t['freqs'])
-
-    for key in d.keys():
-        d[key][pol] = d[key][pol][:,freq_range[0]:freq_range[1]]
-        f[key][pol] = f[key][pol][:,freq_range[0]:freq_range[1]]
-
-    #create variable to store the wedge subplots in
-    wedgeslices = []
-    
-    #get dictionary of antennae pairs
-    #keys are baseline lengths, values are list of tuples (antenna numbers)
-    antdict = get_baselines(calfile, ex_ants)[0]
-    baselengths = antdict.keys()
-    baselengths.sort()
-    
-    lst_range = []
-    
-    #for each baselength in the dictionary
-    for length in baselengths:
+    def calculate_caldata(self):
+        """
+        Returns a dictionary of baseline lengths and the corresponding pairs. The data is based 
+        on a calfile. ex_ants is a list of integers that specify antennae to be exlcuded from 
+        calculation.
         
-        totald = np.zeros_like(d[antdict[length][0]][pol], dtype=np.complex128) #variable to store cumulative fft data
-        vissq_per_bl = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
-
-        #cycle through every ant pair of the given baselength
-        for antpair in antdict[length]:
-
-            #create/get metadata    
-            uv = aipy.miriad.UV(files[files.keys()[0]][0])
-            aa = aipy.cal.get_aa(calfile, uv['sdf'], uv['sfreq'], uv['nchan']) 
-            del(uv)
-
-
-            #CLEAN and fft the data
-            totald += cleanfft(d, f, antpair, pol, clean=1e-3)
-
-            #holds our data
-            vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
-
-            #multiply at times (1*2, 3*4, etc...) 
-            for i in range(ntimes):
-                 
-                #set up phasing    
-                aa.set_active_pol(pol) 
-                if i!=0:
-                    old_zenith = zenith
-                time = t['times'][i]    
-                aa.set_jultime(time)
-                lst = aa.sidereal_time()
-                zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
-                zenith.compute(aa)
-                if i==0 and length==baselengths[0] and antpair==antdict[length][0]:
-                    lst_range.append(str(lst))
-                if i==ntimes-1 and length==baselengths[0] and antpair==antdict[length][0]:
-                    lst_range.append(str(lst))
-                if i==0:
-                    continue
-
-                #phase and multiply, store in vissq_per_antpair
-                if i % 2:
-                    _v1 = totald[i-1,:]
-                    phase_correction = np.conj(aa.gen_phs(zenith,antpair[0],antpair[1]))*aa.gen_phs(old_zenith,antpair[0],antpair[1])
-                    _v2 = totald[i,:]*phase_correction[freq_range[0]:freq_range[1]]
-                    vissq_per_antpair[i // 2,:] = np.conj(_v1)*_v2
-
-            #store time average for this baseline length
-            vissq_per_bl += vissq_per_antpair
+        Requires cal file to be in PYTHONPATH.
+        """
+        try:
+            print 'Reading calfile: {cfile}'.format(cfile=self.calfile)
+            exec("import {cfile} as cal".format(cfile=self.calfile))
+            antennae = cal.prms['antpos_ideal']
+        except ImportError:
+            raise Exception("Unable to import {cfile}.".format(cfile=self.calfile))
         
-        
-        #get average of all values for this baselength, store in wedgeslices
-        vissq_per_bl /= len(antdict[length])
-        wedgeslices.append(np.log10(np.fft.fftshift(np.abs(vissq_per_bl), axes=1)))
-        print 'baseline {} complete.'.format(length)
+        # Remove all placeholder antennae from consideration
+        # Remove all antennae from ex_ants from consideration
+        ants = []
+        for ant in antennae.keys():
+            if (not antennae[ant]['top_z'] < 0) and (ant not in self.ex_ants):
+                ants.append(ant)
 
-    channel_width = (t['freqs'][1] - t['freqs'][0])*10**3 # Channel width in units of GHz
-    num_bins = len(t['freqs'])
-    #get data to recalculate axes  
-    delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+        # Form pairs of antennae
+        # Store unique baselines and slopes for later use
+        pairs, baselines, slopes =  {}, [], []
+        for ant_i in ants:
+            for ant_j in ants:
+                if (ant_i >= ant_j): continue
+                pair = (ant_i, ant_j)
 
-    #save filedata as npz
-    #NB: filename of form like "zen.2457746.16693.xx.HH.uvcOR"
-    np.savez(npz_name, times=t['times'], wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselengths, lst=lst_range, hist=history)
-    return npz_name
-
-def wedge_flavors(args, files, pol, calfile, history, freq_range, ex_ants):
-    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'flavors')
-
-    if pol in ['I', 'Q', 'U', 'V']:
-        exec('t, d, f = stokes{}(files)'.format(pol))
-    elif pol in ['xx', 'xy', 'yx', 'yy']:
-        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-    else:
-        raise Exception('Polarization Not Recognized')
-
-    t['freqs'] = t['freqs'][freq_range[0]: freq_range[1]]
-    for key in d.keys():
-        d[key][pol] = d[key][pol][:, freq_range[0]:freq_range[1]]
-        f[key][pol] = f[key][pol][:, freq_range[0]:freq_range[1]]
-
-    baseline_info = get_baselines(calfile, ex_ants)
-    antdict, slopedict, pairs = baseline_info[0], baseline_info[1], baseline_info[2]
-    baselines, slopes = baseline_info[3], baseline_info[4]
-
-    ntimes, nchan = len(t['times']), len(t['freqs'])
-
-    dt = np.diff(t['times'])[0]
-
-    lst_range = []
-
-    wedgeslices = []
-    for baseline in sorted(slopedict.keys()):
-        vis_sq_baseline = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
-        for slope in sorted(slopedict[baseline].keys()):
-            vis_sq_slope = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
-            for pair in slopedict[baseline][slope]:
-                vis_sq_pair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
-
-                uv = aipy.miriad.UV(files[files.keys()[0]][0])
-                aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan'])
-                del(uv)
+                # Calculate baseline length
+                dx = decimal.Decimal(antennae[pair[0]]['top_x'] - antennae[pair[1]]['top_x'])
+                dy = decimal.Decimal(antennae[pair[0]]['top_y'] - antennae[pair[1]]['top_y'])
+                baseline = float((dx**2 + dy**2).sqrt())
+                baselines.append(baseline)
                 
-                ftd_2D_data = cleanfft(d, f, pair, pol, clean=1e-3)
+                # Calculate slope between an antenna pair
+                dy = decimal.Decimal(antennae[pair[1]]['top_y'] - antennae[pair[0]]['top_y'])
+                dx = decimal.Decimal(antennae[pair[1]]['top_x'] - antennae[pair[0]]['top_x'])
+                if dx != 0:
+                    slope = float(dy / dx)
+                else:
+                    slope = np.inf
+                slopes.append(slope)
+                
+                pairs[pair] = (baseline, slope)
 
-                for i in range(ntimes):                     
-                    aa.set_active_pol(pol) 
-                    if i != 0:
-                        old_zenith = zenith
-                    time = t['times'][i]    
-                    aa.set_jultime(time)
-                    lst = aa.sidereal_time()
-                    zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
-                    zenith.compute(aa)
-                    if i==0 and baseline==sorted(slopedict.keys())[0] and slope==sorted(slopedict[baseline])[0] and pair==slopedict[baseline][slope][0]:
-                        lst_range.append(str(lst))
-                    if i==ntimes-1 and baseline==sorted(slopedict.keys())[0] and slope==sorted(slopedict[baseline])[0] and pair==sorted(slopedict[baseline][slope])[0]:
-                        lst_range.append(str(lst))
-                    if i == 0:
-                        continue
+        # Remove duplicates baseline and slope values
+        baselines = set(baselines)
+        slopes = set(slopes)
 
-                    if i % 2:
-                        _v1 = ftd_2D_data[i-1,:]
-                        phase_correction = np.conj(aa.gen_phs(zenith, pair[0], pair[1])) * aa.gen_phs(old_zenith, pair[0], pair[1])
-                        _v2 = ftd_2D_data[i, :] * phase_correction[freq_range[0]: freq_range[1]]
+        # Initalize antdict with baselines as keys and empty lists as values
+        antdict = {baseline: [] for baseline in baselines}
 
-                        vis_sq_pair[i // 2, :] = np.conj(_v1) * _v2
+        # Add pairs to the list of their respective baseline
+        for pair in pairs:
+            baseline = pairs[pair][0]
+            antdict[baseline].append(pair)
 
-                vis_sq_slope += vis_sq_pair
+        # Initialize slopedict with baselines for keys and the dictionary of slopes for each value
+        slopedict = {}
+        for baseline in baselines:
+            slopedict[baseline] = {slope: [] for slope in slopes}
 
-            vis_sq_slope /= len(slopedict[baseline])
+        # Add pairs to their respective slope within their respective baseline
+        for pair in pairs:
+            baseline = pairs[pair][0]
+            slope = pairs[pair][1]
+            slopedict[baseline][slope].append(pair)
 
-            wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(vis_sq_slope, axis=0)))))
-            print 'Wedgeslice for baseline {} and slope {} complete.'.format(baseline, slope)
-   
-    channel_width = (t['freqs'][1] - t['freqs'][0])*10**3 # Channel width in units of GHz
-    num_bins = len(t['freqs'])
-    delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
-    
-    np.savez(npz_name, wdgslc=wedgeslices, dlys=delays, pol=pol, bls=baselines, slps=slopes, prs=pairs, slpdct=slopedict, lst=lst_range, hist=history)
-    return npz_name
+        for baseline in slopedict.copy():
+            for slope in slopedict[baseline].copy():
+                if slopedict[baseline][slope] == []:
+                    del slopedict[baseline][slope]
 
-def wedge_bltype(args, files, pol, calfile, history, freq_range, ex_ants):
-    bl_num = args.bl_num
-    npz_name = name_npz(args, files[files.keys()[0]], pol, ex_ants, 'bl{}'.format(bl_num))
+        self.caldata = (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
 
+    def cleanfft(self, pair, clean=1e-3):
+        # FFT
+        w = aipy.dsp.gen_window(self.data[pair][self.pol].shape[-1], window='blackman-harris')
+        _dw = np.fft.ifft(self.data[pair][self.pol] * w)
 
-    if pol in ['I', 'Q', 'U', 'V']:
-        exec('t, d, f = stokes{}(files)'.format(pol))
-    elif pol in ['xx', 'xy', 'yx', 'yy']:
-        t, d, f = capo.miriad.read_files(files, antstr='cross', polstr=pol)
-    else:
-        raise Exception('Polarization Not Recognized')
+        # CLEAN
+        _ker= np.fft.ifft(self.flags[pair][self.pol] * w)
+        gain = aipy.img.beam_gain(_ker)
+        for time in range(_dw.shape[0]):
+            _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
+            _dw[time, :] += info['res'] / gain
 
-    bl_num -= 1
+        self.fft_2Ddata = np.ma.array(_dw)
 
-    t['freqs'] = t['freqs'][freq_range[0]:freq_range[1]]
-    ntimes,nchan = len(t['times']),len(t['freqs'])
-
-    for key in d.keys():
-        d[key][pol] = d[key][pol][:,freq_range[0]:freq_range[1]]
-        f[key][pol] = f[key][pol][:,freq_range[0]:freq_range[1]]
-
-    #create variable to store the wedge subplots in
-    antpairslices = []
-    
-    #get dictionary of antennae pairs
-    #keys are baseline lengths, values are list of tuples (antenna numbers)
-    antdict = get_baselines(calfile, ex_ants)[0]
-    baselengths = antdict.keys()
-    baselengths.sort()
-
-    totald = np.zeros_like(d[antdict[baselengths[bl_num]][0]][pol])
-
-    length = baselengths[bl_num]
-
-    #access antenna tuples in baselengths dictionary, antpair is antenna tuple
-    for antpair in antdict[baselengths[bl_num]]:
-        
-        #an array to store visibilities^2 per antpair
-        vissq_per_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
-        
-        #create/get metadata    
-        uv = aipy.miriad.UV(files[files.keys()[0]][0])
-        aa = aipy.cal.get_aa(calfile.split('.')[0], uv['sdf'], uv['sfreq'], uv['nchan']) 
-        del(uv)
-
-        #CLEAN and fft the data
-        totald = cleanfft(d, f, antpair, pol, clean=1e-3)
-
-
-        #multiply at times (1*2, 3*4, etc...) 
+    def phasing(self, ntimes, antpair):
         for i in range(ntimes):
-             
-            #set up phasing    
-            aa.set_active_pol(pol) 
             if i!=0:
-                old_zenith = zenith
-            time = t['times'][i]    
-            aa.set_jultime(time)
-            lst = aa.sidereal_time()
-            zenith = aipy.phs.RadioFixedBody(lst, aa.lat)
-            zenith.compute(aa)
-            if i==0:
-                continue
+                old_zenith = self.zenith
+            time = self.info['times'][i]    
+            self.aa.set_jultime(time)
+            lst = self.aa.sidereal_time()
+            self.zenith = aipy.phs.RadioFixedBody(lst, self.aa.lat)
+            self.zenith.compute(self.aa)
 
-            #phase and multiply, store in vissq_per_antpair
+            self.lst_range.append(lst)
+
             if i % 2:
-                _v1 = totald[i-1,:]
-                phase_correction = np.conj(aa.gen_phs(zenith,antpair[0],antpair[1]))*aa.gen_phs(old_zenith,antpair[0],antpair[1])
-                _v2 = totald[i,:]*phase_correction[freq_range[0]:freq_range[1]]
-                vissq_per_antpair[i // 2,:] = np.conj(_v1)*_v2
-    
-        antpairslices.append(np.log10(np.fft.fftshift(np.abs(vissq_per_antpair), axes=1)))
-        print "antpair {antpair} done!!!"
-    
-    antpairs = antdict[baselengths[bl_num]]
+                v1 = self.fft_2Ddata[i - 1, :]
+                phase_correction = np.conj(self.aa.gen_phs(self.zenith, antpair[0], antpair[1])) * self.aa.gen_phs(old_zenith, antpair[0], antpair[1])
+                v2 = self.fft_2Ddata[i, :] * phase_correction[self.freq_range[0]:self.freq_range[1]]
+                self.vis_sq_antpair[i // 2, :] = np.conj(v1) * v2
 
-    channel_width = (t['freqs'][1] - t['freqs'][0])*10**3
-    num_bins = len(t['freqs'])
-    #get data to recalculate axes  
-    delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+    # Forming Stokes Parameters:
+    def form_stokesI(self):
+        """Calculate I (VI = Vxx + Vyy)"""
+        txx, dxx, fxx = capo.miriad.read_files(self.files['xx'], antstr='cross', polstr='xx')
+        tyy, dyy, fyy = capo.miriad.read_files(self.files['yy'], antstr='cross', polstr='yy')
 
-    np.savez(npz_name, antpairslc=antpairslices, dlys=delays, pol=pol, antprs=antpairs, length=length, hist=history)
-    return npz_name
+        tI = txx
+        dI = {}
+        fI = {}
+        for key in dxx.keys():
+            dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy'] }
+            fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy'] }
+
+        del txx, dxx, fxx
+        del tyy, dyy, fyy
+
+        self.info, self.data, self.flags = tI, dI, fI
+
+    def form_stokesQ(self):
+        """Calculate Q (VQ = Vxx - Vyy)"""
+        txx, dxx, fxx = capo.miriad.read_files(self.files['xx'], antstr='cross', polstr='xx')
+        tyy, dyy, fyy = capo.miriad.read_files(self.files['yy'], antstr='cross', polstr='yy')
+
+        tQ = tyy
+        dQ = {}
+        fQ = {}
+        for key in dxx.keys():
+            dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy'] }
+            fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy'] }
+
+        del txx, dxx, fxx
+        del tyy, dyy, fyy
+
+        self.info, self.data, self.flags = tQ, dQ, fQ
+
+    def form_stokesU(self):
+        """Calculate U (VU = Vxy + Vyx)"""
+        tyx, dyx, fyx = capo.miriad.read_files(self.files['yx'], antstr='cross', polstr='yx')
+        txy, dxy, fxy = capo.miriad.read_files(self.files['xy'], antstr='cross', polstr='xy')
+
+        tU = tyx
+        dU = {}
+        fU = {}
+        for key in dxy.keys():
+            dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx'] }
+            fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx'] }
+
+        del tyx, dyx, fyx
+        del txy, dxy, fxy
+
+        self.info, self.data, self.flags = tU, dU, fU
+
+    def form_stokesV(self):
+        """Calculate V (VV = -i*Vxy + i*Vyx)"""
+        tyx, dyx, fyx = capo.miriad.read_files(self.files['yx'], antstr='cross', polstr='yx')
+        txy, dxy, fxy = capo.miriad.read_files(self.files['xy'], antstr='cross', polstr='xy')
+
+        tV = txy
+        dV = {}
+        fV = {}
+        for key in dxy.keys():
+            dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx'] }
+            fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx'] }
+
+        del tyx, dyx, fyx
+        del txy, dxy, fxy
+
+        self.info, self.data, self.flags = tV, dV, fV
+
+    # Load data of one polarization:
+    def load_file(self):
+        """Loads data with given polarization, self.pol, from files, self.files"""
+        self.info, self.data, self.flags = capo.miriad.read_files(self.files[self.pol], antstr='cross', polstr=self.pol)
+
+    # Wedge creating methods:
+    def timeavg(self):
+        """Create a pitchfork that is time averaged and averaged over each baseline."""
+        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
+        for antpair in self.data.keys():
+            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+
+        ntimes = len(self.info['times'])
+        nchan = len(self.info['freqs'])
+
+        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        del uv
+        self.aa.set_active_pol(self.pol)
+
+        for baselength in sorted(self.caldata[0]):
+            self.vis_sq_bl = np.zeros((ntimes//2, nchan), dtype=np.complex128)
+            for antpair in self.caldata[0][baselength]:
+                self.vis_sq_antpair = np.zeros((ntimes//2, nchan), dtype=np.complex128)
+                self.cleanfft(antpair)
+                self.phasing(ntimes, antpair)
+                self.vis_sq_bl += self.vis_sq_antpair
+            self.vis_sq_bl /= len(self.caldata[0][baselength])
+            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(self.vis_sq_bl, axis=0)))))
+            print 'Wedgeslice for baselength {} complete.'.format(baselength)
+
+        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
+        num_bins = len(self.info['freqs'])
+        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+
+        np.savez(
+            self.npz_name,
+            wdgslc=self.wedgeslices,
+            dlys=delays,
+            pol=self.pol,
+            cldt=self.caldata,
+            lst=(min(self.lst_range), max(self.lst_range)),
+            hist=self.history)
+
+    def blavg(self):
+        """Create a pitchfork that is averaged over each baseline"""
+        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
+        for antpair in self.data.keys():
+            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+
+        ntimes = len(self.info['times'])
+        nchan = len(self.info['freqs'])
+
+        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        del uv
+        self.aa.set_active_pol(self.pol)
+                
+        for baselength in sorted(self.caldata[0]):
+            self.vis_sq_bl = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
+            for antpair in self.caldata[0][baselength]:
+                self.vis_sq_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
+                self.cleanfft(antpair)
+                self.phasing(ntimes, antpair)
+                self.vis_sq_bl += self.vis_sq_antpair            
+            self.vis_sq_bl /= len(self.caldata[0][baselength])
+            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(self.vis_sq_bl), axes=1)))
+            print 'Wedgeslice for baselength {} complete.'.format(baselength)
+
+        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
+        num_bins = len(self.info['freqs'])
+        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+
+        np.savez(self.npz_name,
+            times=self.info['times'],
+            wdgslc=self.wedgeslices,
+            dlys=delays,
+            pol=self.pol,
+            cldt=self.caldata,
+            lst=(min(self.lst_range), max(self.lst_range)),
+            hist=self.history)
+
+    def flavors(self):
+        """Create a pitchfork averaged over baseline orientation and in time"""
+        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
+        for antpair in self.data.keys():
+            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+
+        ntimes = len(self.info['times'])
+        nchan = len(self.info['freqs'])
+
+        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        del uv
+        self.aa.set_active_pol(self.pol)
+
+        for baselength in sorted(self.caldata[1]):
+            self.vis_sq_bl = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
+            for slope in sorted(self.caldata[1][baselength]):
+                self.vis_sq_slope = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
+                for antpair in self.caldata[1][baselength][slope]:
+                    self.vis_sq_antpair = np.zeros((ntimes//2, nchan), dtype=np.complex128)
+                    self.cleanfft(antpair)
+                    self.phasing(ntimes, antpair)
+                    self.vis_sq_slope += self.vis_sq_antpair
+                self.vis_sq_slope /= len(self.caldata[1][baselength])
+                self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(self.vis_sq_slope, axis=0)))))
+                print 'Wedgeslice for baseline {} and slope {} complete.'.format(baselength, slope)
+       
+        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
+        num_bins = len(self.info['freqs'])
+        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+        
+        np.savez(
+            self.npz_name,
+            wdgslc=self.wedgeslices,
+            dlys=delays,
+            pol=self.pol,
+            cldt=self.caldata,
+            lst=(min(self.lst_range), max(self.lst_range)),
+            hist=self.history)
+
+    def bltype(self):
+        """Create a plot with a wedgeslice for each antenna pair from a given baselength"""
+        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
+        for antpair in self.data.keys():
+            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+
+        ntimes = len(self.info['times'])
+        nchan = len(self.info['freqs'])
+
+        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        del uv
+        self.aa.set_active_pol(self.pol)
+
+        bl_num = self.args.bl_num - 1
+        length = self.caldata[3][bl_num]
+        antpairs = self.caldata[0][length]
+
+        for antpair in antpairs:
+            self.vis_sq_antpair = np.zeros((ntimes // 2 ,nchan), dtype=np.complex128)
+            self.cleanfft(antpair)
+            self.phasing(ntimes, antpair)
+        
+            self.antpairslices.append(np.log10(np.fft.fftshift(np.abs(self.vis_sq_antpair), axes=1)))
+            print 'Wedgeslice for antenna pair {} complete.'.format(antpair)
+
+        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
+        num_bins = len(self.info['freqs'])
+        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+
+        np.savez(
+            self.npz_name,
+            antslc=self.antpairslices,
+            dlys=delays,
+            pol=self.pol,
+            antprs=antpairs,
+            length=length,
+            hist=self.history)
 
 # Create Wedge from Pitchfork
 def wedge_delayavg(npz_name, multi=False):
 
     plot_data = np.load(npz_name)
-    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
+    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['cldt'][3], plot_data['cldt'][3]
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
     split = (len(wedgevalues[0,:])/2)
@@ -604,13 +454,13 @@ def plot_timeavg(npz_name, multi=False):
     cbar.set_label("log10((mK)^2)")
     plt.xlim((-450,450))
     npz_name = npz_name.split('/')[-1]
-    plt.suptitle('JD '+npz_name.split('.')[1]+' LST '+plot_data['lst'][0]+' to '+plot_data['lst'][-1], size='large')
+    # plt.suptitle('JD '+npz_name.split('.')[1]+' LST '+plot_data['lst'][0]+' to '+plot_data['lst'][-1], size='large')
     plt.title(npz_name.split('.')[3], size='medium')
-    plt.yticks(np.arange(len(plot_data['bls'])), [round(n,1) for n in plot_data['bls']])
+    plt.yticks(np.arange(len(plot_data['cldt'][3])), [round(n,1) for n in plot_data['cldt'][3]])
 
     #calculate light travel time for each baselength
     light_times = []
-    for length in plot_data['bls']:
+    for length in plot_data['cldt'][3]:
         light_times.append(length/sc.c*10**9)
 
     #plot lines on plot using the light travel time
@@ -666,7 +516,7 @@ def plot_blavg(npz_name):
 
     #calculate light travel time for each baselength
     light_times = []
-    for length in plot_data['bls']:
+    for length in plot_data['cldt'][3]:
         light_times.append(length/sc.c*10**9)
  
     #plot individual wedge slices
@@ -674,7 +524,7 @@ def plot_blavg(npz_name):
         #plot the graph
         im = axarr[i].imshow(plot_data['wdgslc'][i], aspect='auto',interpolation='nearest', vmin=-9, vmax= 1, extent=[d_start,d_end,t_start,t_end])
         #plot light delay time lines
-        light_time = (plot_data['bls'][i])/sc.c*10**9
+        light_time = (plot_data['cldt'][3][i])/sc.c*10**9
         x1, y1 = [light_time, light_time], [t_start, t_end] 
         x2, y2 = [-light_time, -light_time], [t_end, t_start]
         axarr[i].plot(x1, y1, x2, y2, color = 'white') 
@@ -711,7 +561,7 @@ def plot_flavors(npz_name, multi=False):
     plt.xlim((-450, 450))
 
     ticks = []
-    slopedict = data['slpdct'].tolist()
+    slopedict = data['cldt'][1]
     for baseline in sorted(slopedict.keys()):
         for slope in sorted(slopedict[baseline].keys()):
             ticks.append("{:.3}: {:8.3}".format(baseline, slope))
@@ -769,10 +619,10 @@ def plot_bltype(npz_name):
 
     d_start = plot_data['dlys'][0]
     d_end = plot_data['dlys'][-1]
-    t_start = plot_data['antpairslc'][0].shape[0]
+    t_start = plot_data['antslc'][0].shape[0]
 
     #create subplot to plot data
-    f,axarr = plt.subplots(len(plot_data['antpairslc']),1,sharex=True,sharey=True)
+    f,axarr = plt.subplots(len(plot_data['antslc']),1,sharex=True,sharey=True)
     
     #add axes labels
     f.add_subplot(111, frameon=False)
@@ -786,13 +636,13 @@ def plot_bltype(npz_name):
     plt.title('baseline length:'+lengthstr)
 
     #plot individual wedge slices
-    for i in range(len(plot_data['antpairslc'])):
+    for i in range(len(plot_data['antslc'])):
         #plot the graph
-        im = axarr[i].imshow(plot_data['antpairslc'][i], aspect='auto',interpolation='nearest', vmin=-9, vmax= 1, extent=[d_start,d_end,t_start,0])
+        im = axarr[i].imshow(plot_data['antslc'][i], aspect='auto',interpolation='nearest', vmin=-9, vmax= 1, extent=[d_start,d_end,t_start,0])
         #plot light delay time lines
         light_time = (plot_data['length'])/sc.c*10**9
-        x1, y1 = [light_time, light_time], [0, np.shape(plot_data['antpairslc'][i])[0]] 
-        x2, y2 = [-light_time, -light_time], [0, np.shape(plot_data['antpairslc'][i])[0]]
+        x1, y1 = [light_time, light_time], [0, np.shape(plot_data['antslc'][i])[0]] 
+        x2, y2 = [-light_time, -light_time], [0, np.shape(plot_data['antslc'][i])[0]]
         axarr[i].plot(x1, y1, x2, y2, color = 'white')
         axarr[i].set_ylabel(plot_data['antprs'][i], fontsize=6) 
 
