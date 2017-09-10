@@ -57,13 +57,14 @@ class Wedge(object):
         file_end = self.files[self.files.keys()[0]][-1].split('/')[-1].split('.')
 
         zen_day = file_start[:2]
-        time_range = ['{}_{}'.format(file_start[2], file_end[2])]
+        time_range = ['{start}_{end}'.format(start=file_start[2], end=file_end[2])]
         HH = [file_start[4]]
         ext = [file_start[5]]
         pol = [self.pol]
+        freq_range = ['{start}_{end}'.format(start=self.freq_range[0], end=self.freq_range[1])]
         tag = [tag]
 
-        npz_name = zen_day + time_range + pol + HH + ext + tag + ["npz"]
+        npz_name = zen_day + time_range + pol + freq_range + HH + ext + tag + ["npz"]
 
         if self.ex_ants:
             ex_ants = [str(ant) for ant in self.ex_ants]
