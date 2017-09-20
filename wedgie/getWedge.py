@@ -7,9 +7,9 @@ Austin Fox Fortino <fortino_at_sas.upenn.edu>
 Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
-import argparse
+import argparse, multiprocessing, os
 import wedge_utils as wu
-import multiprocessing
+import numpy as np
 from copy import deepcopy
 
 # For Interactive Decelopment
@@ -35,6 +35,10 @@ parser.add_argument('-X',
                     '--ex_ants',
                     help='Input a comma-delimited list of antennae to exclude from analysis.',
                     type=str)
+parser.add_argument('-V',
+                    '--path',
+                    help='Input the path to where you want your files to be saved.',
+                    default='./')
 
 # Parameters for Changing What is Analyzed
 parser.add_argument('-S',
@@ -75,7 +79,7 @@ parser.add_argument('-f',
                     default=False,
                     action='store_true')
 parser.add_argument('-l',
-                    '--bl_num',
+                    '--bl_type',
                     help='Toggle bltype and input 1 baseline type.',
                     default=False,
                     type=int)
@@ -87,7 +91,13 @@ parser.add_argument('-d',
                     default=False,
                     action="store_true")
 
+# Combine npz files
+parser.add_argument('-c',
+                    '--combine',
+                    action='store_true')
+
 args = parser.parse_args()
+
 
 class Batch(object):
     def __init__(self, args):
@@ -104,6 +114,9 @@ class Batch(object):
         self.stair = int()
         self.load = int()
 
+        self.MISSING_TAG_ERR = "You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_type=X)."
+
+    def format_batch(self):
         self.format_pols()
         self.format_files()
         self.format_exants()
@@ -217,12 +230,12 @@ class Batch(object):
                     wedge.name_npz('flavors')
                     wedge.flavors()
 
-                elif self.args.bl_num:
-                    wedge.name_npz('bl{}'.format(self.args.bl_num))
+                elif self.args.bl_type:
+                    wedge.name_npz('bl{}'.format(self.args.bl_type))
                     wedge.bltype()
 
                 else:
-                    raise Exception("You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_num=X).")
+                    raise Exception(self.MISSING_TAG_ERR)
 
         elif self.pol_type == 'standard':
             for pol in self.pols:
@@ -241,18 +254,72 @@ class Batch(object):
                     wedge.name_npz('flavors')
                     wedge.flavors()
 
-                elif self.args.bl_num:
-                    wedge.name_npz('bl{}'.format(self.args.bl_num))
+                elif self.args.bl_type:
+                    wedge.name_npz('bl{}'.format(self.args.bl_type))
                     wedge.bltype()
 
                 else:
-                    raise Exception("You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_num=X).")
+                    raise Exception(self.MISSING_TAG_ERR)
 
         else:
             raise Exception("Polarization type not understood, be sure you have correctly specified the polarizations you want.")
 
+    def combine(self):
+        self.pols = self.args.pol.split(',')
+
+        for pol in self.pols:
+            pol_files = []
+            for file in self.args.filenames:
+                if pol in file.split('/')[-1]:
+                    pol_files.append(file)
+
+            self.files[pol] = pol_files
+
+
+
+        for pol in self.files.copy():
+
+            for i in range(len(self.files[pol])-1):
+                file_0 = self.files[pol][0]
+                data_0 = np.load(file_0)
+
+                cwedge_0 = data_0['cwdgslc']
+                delays = data_0['dlys']
+                caldata = data_0['cldt']
+                lst = data_0['lst']
+
+                start = file_0.split('/')[-1].split('.')[2].split('_')[0]
+
+
+                file_i = self.files[pol][1]
+                data_i = np.load(file_i)
+                cwedge_i = data_i['cwdgslc']
+
+                cwedge = []
+                for O, i in zip(cwedge_0, cwedge_i):
+                    cwedge.append( (O + i) / 2 )
+                wedge = np.log10(np.fft.fftshift(np.abs(cwedge)))
+
+                end = file_i.split('/')[-1].split('.')[2].split('_')[1]
+                time_rng = ['_'.join([start,end])]
+                npz_name = file_0.split('/')[-1].split('.')[:2] + time_rng + file_i.split('/')[-1].split('.')[3:]
+                npz_name = '.'.join(npz_name)
+
+                np.savez(npz_name, cwdgslc=cwedge, wdgslc=wedge, dlys=delays, cldt=caldata, pol=pol, lst=lst)
+
+                os.remove(file_0)
+                os.remove(file_i)
+
+                self.files[pol][0] = npz_name
+                del self.files[pol][1]
 
 zen = Batch(args)
+
+if args.combine:
+    zen.combine()
+    quit()
+
+zen.format_batch()
 if args.step:
     zen.stepping()
 elif args.stair:
