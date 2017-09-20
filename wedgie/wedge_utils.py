@@ -44,9 +44,10 @@ class Wedge(object):
         self.fft_2Ddata = None
         self.zenith = None
 
-        self.wedgeslices = []
-        self.antpairslices = []
-        self.lst_range =[]
+        self.wedgeslices = list()
+        self.cwedgeslices = list()
+        self.antpairslices = list()
+        self.lst_range =list()
         
         decimal.getcontext().prec = 6
         self.calculate_caldata()
@@ -73,7 +74,7 @@ class Wedge(object):
 
         npz_name = '.'.join(npz_name)
 
-        self.npz_name = npz_name
+        self.npz_name = self.args.path + npz_name
 
         print self.npz_name
 
@@ -154,13 +155,19 @@ class Wedge(object):
 
         self.caldata = (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
 
-    def cleanfft(self, pair, clean=1e-3):
+    def cleanfft(self, pair, clean=1e-9):
         # FFT
         w = aipy.dsp.gen_window(self.data[pair][self.pol].shape[-1], window='blackman-harris')
         _dw = np.fft.ifft(self.data[pair][self.pol] * w)
 
         # CLEAN
+        # This needs some work
         _ker= np.fft.ifft(self.flags[pair][self.pol] * w)
+        # if not np.any(self.flags[pair][self.pol]) is True:
+        #     _ker= np.fft.ifft(w) 
+        # else:
+        #     _ker= np.fft.ifft(self.flags[pair][self.pol] * w)
+
         gain = aipy.img.beam_gain(_ker)
         for time in range(_dw.shape[0]):
             _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
@@ -178,7 +185,7 @@ class Wedge(object):
             self.zenith = aipy.phs.RadioFixedBody(lst, self.aa.lat)
             self.zenith.compute(self.aa)
 
-            self.lst_range.append(lst)
+            self.lst_range.append( (lst, str(lst)) )
 
             if i % 2:
                 v1 = self.fft_2Ddata[i - 1, :]
@@ -284,6 +291,7 @@ class Wedge(object):
                 self.phasing(ntimes, antpair)
                 self.vis_sq_bl += self.vis_sq_antpair
             self.vis_sq_bl /= len(self.caldata[0][baselength])
+            self.cwedgeslices.append(np.mean(self.vis_sq_bl, axis=0))
             self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(self.vis_sq_bl, axis=0)))))
             print 'Wedgeslice for baselength {} complete.'.format(baselength)
 
@@ -293,11 +301,12 @@ class Wedge(object):
 
         np.savez(
             self.npz_name,
+            cwdgslc=self.cwedgeslices,
             wdgslc=self.wedgeslices,
             dlys=delays,
             pol=self.pol,
             cldt=self.caldata,
-            lst=(min(self.lst_range), max(self.lst_range)),
+            lst=self.lst_range,
             hist=self.history)
 
     def blavg(self):
@@ -330,13 +339,14 @@ class Wedge(object):
         num_bins = len(self.info['freqs'])
         delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
 
-        np.savez(self.npz_name,
+        np.savez(
+            self.npz_name,
             times=self.info['times'],
             wdgslc=self.wedgeslices,
             dlys=delays,
             pol=self.pol,
             cldt=self.caldata,
-            lst=(min(self.lst_range), max(self.lst_range)),
+            lst=self.lst_range,
             hist=self.history)
 
     def flavors(self):
@@ -377,7 +387,7 @@ class Wedge(object):
             dlys=delays,
             pol=self.pol,
             cldt=self.caldata,
-            lst=(min(self.lst_range), max(self.lst_range)),
+            lst=self.lst_range,
             hist=self.history)
 
     def bltype(self):
@@ -395,8 +405,8 @@ class Wedge(object):
         del uv
         self.aa.set_active_pol(self.pol)
 
-        bl_num = self.args.bl_num - 1
-        length = self.caldata[3][bl_num]
+        bl_type = self.args.bl_type - 1
+        length = self.caldata[3][bl_type]
         antpairs = self.caldata[0][length]
 
         for antpair in antpairs:
@@ -443,176 +453,319 @@ def wedge_delayavg(npz_name, multi=False):
     return npz_delayavg
 
 # Plotting Functions:
-def plot_timeavg(npz_name, multi=False):
-    plot_data = np.load(npz_name)
-
-    d_start = plot_data['dlys'][0]
-    d_end = plot_data['dlys'][-1]
-    plot = plt.imshow(plot_data['wdgslc'], aspect='auto',interpolation='nearest',extent=[d_start,d_end,len(plot_data['wdgslc']),0], vmin=-3.0, vmax=1.0)
-    plt.xlabel("Delay (ns)", size='medium')
-    plt.ylabel("Baseline length (m)", size='medium')
-    cbar = plt.colorbar()
-    cbar.set_label("log10((mK)^2)")
-    plt.xlim((-450,450))
+def plot_timeavg(npz_name, path):
+    data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
-    # plt.suptitle('JD '+npz_name.split('.')[1]+' LST '+plot_data['lst'][0]+' to '+plot_data['lst'][-1], size='large')
-    plt.title(npz_name.split('.')[3], size='medium')
-    plt.yticks(np.arange(len(plot_data['cldt'][3])), [round(n,1) for n in plot_data['cldt'][3]])
+    delay_start = data['dlys'][0]
+    delay_end = data['dlys'][-1]
+    wedgeslices = data['wdgslc']
+    caldata = data['cldt']
+    lst = data['lst']
 
-    #calculate light travel time for each baselength
-    light_times = []
-    for length in plot_data['cldt'][3]:
-        light_times.append(length/sc.c*10**9)
-
-    #plot lines on plot using the light travel time
-    for i in range(len(light_times)):
-       x1, y1 = [light_times[i], light_times[i]], [i, i+1] 
-       x2, y2 = [-light_times[i], -light_times[i]], [i, i+1]
-       plt.plot(x1, y1, x2, y2, color = 'white')
-    
-    if multi:
-        return
+    if 'SIM' in npz_name:
+        vmax = -2
+        vmin = -12
     else:
-        plt.savefig(npz_name[:-3] + 'png')
-        plt.show()
+        vmax = 1
+        vmin = -3
 
-def plot_multi_timeavg(npz_names):
-    #set up multiple plots
-    nplots = len(npz_names)
-    plt.figure(figsize=(4*nplots-3,3))
-    G = gridspec.GridSpec(3, 4*nplots-4)
+    plt.imshow(
+        wedgeslices,
+        aspect='auto',
+        interpolation='nearest',
+        extent=[delay_start, delay_end, len(wedgeslices), 0],
+        vmin=vmin,
+        vmax=vmax)
 
-    #plot each plot in its own gridspec area   
-    for i in range(len(npz_names)):
-        axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        plot_timeavg(npz_names[i], multi=True)
+    plt.colorbar().set_label(r'$\log_{10}({\rm mK}^2)$')
 
-    plt.tight_layout()
-    plt.savefig(npz_names[0][:-3] + "multi.png")
+    plt.xlabel("Delay [ns]")
+    plt.xlim((-450, 450))
+    
+    plt.ylabel("Baseline Length [m]")
+    plt.yticks(np.arange(len(caldata[3])), [round(n,1) for n in caldata[3]])
+ 
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.title(npz_name.split('.')[3])
+
+    plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+    
+    horizons = []
+    for length in caldata[3]:
+        horizons.append(length / sc.c * 10**9)
+
+    for i in range(len(horizons)):
+       x1, y1 = [horizons[i], horizons[i]], [i, i+1] 
+       x2, y2 = [-horizons[i], -horizons[i]], [i, i+1]
+       plt.plot(x1, y1, x2, y2, color='white')
+
+    plt.savefig(path + npz_name[:-4] + '.png')
+    
     # plt.show()
+    plt.close()
+    plt.clf()
 
-def plot_blavg(npz_name): 
-    plot_data = np.load(npz_name)
+def plot_timeavg_multi(npz_names, path):
+    nplots = len(npz_names)
 
-    d_start = plot_data['dlys'][0]
-    d_end = plot_data['dlys'][-1]
-    # t_start = plot_data['wdgslc'][0].shape[0]
-    # t_end = 0
+    # Form subplots
+    f, axes = plt.subplots(1, nplots, sharex=True, sharey=True, figsize=(12,5))
+    
+    # Loop through each subplot and plot
+    for i, ax in enumerate(axes):
+        # Get data from npz_files
+        npz_name = npz_names[i]
+        data = np.load(npz_name)
+        npz_name = npz_name.split('/')[-1]
+        delay_start = data['dlys'][0]
+        delay_end = data['dlys'][-1]
+        wedgeslices = data['wdgslc']
+        caldata = data['cldt']
+        lst = data['lst']
 
-    #format time scale in minutes
-    t_start = (plot_data['times'][-1] - plot_data['times'][0]) * 24*60
-    t_end = 0
+        ax.set_title(npz_name.split('.')[3])
+
+        if 'SIM' in npz_name:
+            vmax = -2
+            vmin = -12
+        else:
+            vmax = 1
+            vmin = -3
+
+        plot = ax.imshow(
+            wedgeslices,
+            aspect='auto',
+            interpolation='nearest',
+            extent=[delay_start, delay_end, len(wedgeslices), 0],
+            vmin=vmin,
+            vmax=vmax)
+
+        # Plot center line to easily see peak offset
+        ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+        
+        # Calculates horizon lines
+        horizons = []
+        for length in caldata[3]:
+            horizons.append(length / sc.c * 10**9)
+
+        # Plots horizon lines
+        for j in range(len(horizons)):
+           x1, y1 = [horizons[j], horizons[j]], [j, j+1] 
+           x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
+           ax.plot(x1, y1, x2, y2, color='white')
+
+        del npz_name
+
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    
+    # Smooshes the plots together
+    f.subplots_adjust(wspace=0)
+    
+    plt.xlim((-450, 450))
+    plt.yticks(np.arange(len(caldata[3])), [round(n,1) for n in caldata[3]])
+    
+    # X and Y axis labels
+    f.text(0.5, 0.025, 'Delay [ns]', ha='center')
+    f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')    
+    
+    # Colorbar
+    cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
+    cbar = f.colorbar(plot, cax=cbar_ax)
+    cbar.set_label(r'$\log_{10}({\rm mK}^2)$')
+
+    # Naming and saving
+    npz_names = [npz_name.split('/')[-1] for npz_name in npz_names]
+    pols = [npz_name.split('.')[3] for npz_name in npz_names]
+    pols = ["".join(pols)]
+    f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
+    npz_name = ".".join(f1 + pols + f2)
+    plt.savefig(path + npz_name + '.png')
+
+    # plt.show()
+    plt.close()
+    plt.clf()
+
+def plot_blavg(npz_name, path):
+    data = np.load(npz_name)
+    npz_name = npz_name.split('/')[-1]
+    delay_start = data['dlys'][0]
+    delay_end = data['dlys'][-1]
+    wedgeslices = data['wdgslc']
+    caldata = data['cldt']
+    lst = data['lst']
+    times = data['times']
+
+    # Format time scale in minutes
+    time_start = (times[-1] - times[0]) * 24*60
+    time_end = 0
 
     #create subplot to plot data
-    f,axarr = plt.subplots(len(plot_data['wdgslc']),1,sharex=True,sharey=True)
+    f, axes = plt.subplots(len(wedgeslices), 1, sharex=True, sharey=True)
     
-    #add axes labels
+    # Create subplot to make titles and lables look right
     f.add_subplot(111, frameon=False)
-    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', 
-                    right='off')
-    plt.xlabel("Delay (ns)")
-    plt.ylabel("Time (min)")
-    plt.suptitle('JD '+npz_name.split('.')[1]+' LST '+str(plot_data['lst'][0])+' to '+str(plot_data['lst'][-1]), size='large')
-    plt.title(npz_name.split('.')[3], size='medium')
-
-    #calculate light travel time for each baselength
-    light_times = []
-    for length in plot_data['cldt'][3]:
-        light_times.append(length/sc.c*10**9)
+    plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
+    plt.xlabel("Delay [ns]")
+    plt.ylabel("Time [min]")
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.title(npz_name.split('.')[3])
  
-    #plot individual wedge slices
-    for i in range(len(plot_data['wdgslc'])):
-        #plot the graph
-        im = axarr[i].imshow(plot_data['wdgslc'][i], aspect='auto',interpolation='nearest', vmin=-9, vmax= 1, extent=[d_start,d_end,t_start,t_end])
-        #plot light delay time lines
-        light_time = (plot_data['cldt'][3][i])/sc.c*10**9
-        x1, y1 = [light_time, light_time], [t_start, t_end] 
-        x2, y2 = [-light_time, -light_time], [t_end, t_start]
-        axarr[i].plot(x1, y1, x2, y2, color = 'white') 
-
-    cax,kw = mpl.colorbar.make_axes([ax for ax in axarr.flat])
-    cbar = plt.colorbar(im, cax=cax, **kw)
-    cbar.set_label('log10(mK)')
+    # Loop through each wedgeslice, and imshow each in its own subplot
+    for i in range(len(wedgeslices)):
+        im = axes[i].imshow(
+            wedgeslices[i],
+            aspect='auto',
+            interpolation='nearest',
+            extent=[delay_start, delay_end, time_start, time_end],
+            vmin=-3,
+            vmax=1)
+        
+        horizon = caldata[3][i] / sc.c * 10**9
+        x1, y1 = [horizon, horizon], [time_start, time_end] 
+        x2, y2 = [-horizon, -horizon], [time_start, time_end]
+        axes[i].plot(x1, y1, x2, y2, color='white')
     
-    #scale x axis to the significant information
-    axarr[0].set_xlim(-450,450)
+    cax, kw = mpl.colorbar.make_axes([ax for ax in axes.flat])
+    cbar = plt.colorbar(im, cax=cax, **kw)
+    cbar.set_label(r'$\log_{10}({\rm mK}^2)$')
+    
+    axes[0].set_xlim(-450,450)
 
-    plt.savefig(npz_name[:-3] + 'png')
-    f.set_size_inches(5, 11, forward=True)
+    plt.savefig(path + npz_name[:-4] + '.png')
     plt.show()
 
-def plot_flavors(npz_name, multi=False):
-    npz_name = "".join(npz_name)
+def plot_flavors(npz_name, path):
     data = np.load(npz_name)
-
     npz_name = npz_name.split('/')[-1]
+    delay_start = data['dlys'][0]
+    delay_end = data['dlys'][-1]
+    wedgeslices = data['wdgslc']
+    caldata = data['cldt']
+    lst = data['lst']
 
-    axis_delay_start = data['dlys'][0]
-    axis_delay_end = data['dlys'][-1]
-    plot = plt.imshow(
-        data['wdgslc'],
+    if 'SIM' in npz_name:
+        vmax = -2
+        vmin = -12
+    else:
+        vmax = 1
+        vmin = -3
+
+    plt.imshow(
+        wedgeslices,
         aspect='auto',
-        # interpolation='nearest',
-        extent=[axis_delay_start, axis_delay_end, len(data['wdgslc']), 0],
-        vmin=-3.0,
-        vmax=1.0)
-    
-    plt.xlabel("Delay (ns)")
+        interpolation='nearest',
+        extent=[delay_start, delay_end, len(wedgeslices), 0],
+        vmin=vmin,
+        vmax=vmax)
 
+    plt.colorbar().set_label(r'$\log_{10}({\rm mK}^2)$')
+
+    plt.xlabel("Delay [ns]")
     plt.xlim((-450, 450))
+    
+    plt.ylabel("Baseline Length [m]: Orientation")
+ 
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.title(npz_name.split('.')[3])
 
+    plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+    
     ticks = []
-    slopedict = data['cldt'][1]
+    slopedict = caldata[1]
     for baseline in sorted(slopedict.keys()):
         for slope in sorted(slopedict[baseline].keys()):
             ticks.append("{:.3}: {:8.3}".format(baseline, slope))
+    plt.yticks(np.arange(len(ticks)), ticks)
 
-    light_times = []
+    horizons = []
     for baseline in sorted(slopedict.keys()):
         for slope in sorted(slopedict[baseline].keys()):
-            light_times.append(baseline/sc.c*10**9)
+            horizons.append(baseline / sc.c * 10**9)
 
-    for i in range(len(light_times)):
-        x1, y1 = [light_times[i], light_times[i]], [i, i+1] 
-        x2, y2 = [-light_times[i], -light_times[i]], [i, i+1]
+    for j in range(len(horizons)):
+        x1, y1 = [horizons[j], horizons[j]], [j, j+1] 
+        x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
         plt.plot(x1, y1, 'w', x2, y2, 'w')
 
-    plt.axvline(x=0, color='k', linestyle='dashed', linewidth=0.5)
+    plt.savefig(path + npz_name[:-4] + '.png')
+    plt.show()
 
-
-    if multi:
-        plt.title(".".join(npz_name.split('.')[2:4]))
-        return ticks
-    else:
-        plt.title(npz_name.split('.')[3])
-        plt.ylabel("Baseline length (short to long)")
-        color_bar = plt.colorbar().set_label("log10((mK)^2)")
-        plt.yticks(np.arange(len(ticks)), ticks)
-        plt.tight_layout()
-        plt.savefig(".".join(npz_name.split('.')[:-1]) + '.png')
-        plt.show()
-
-def plot_multi_flavors(npz_names):
+def plot_flavors_multi(npz_names, path):
     nplots = len(npz_names)
-    plt.figure(figsize=(15, 5))
-    G = gridspec.GridSpec(3, (4 * nplots) - 4)
 
-    for i in range(nplots):
-        axes = plt.subplot(G[:, (i*3):(i*3)+3])
-        ticks = plot_flavors(npz_names[i], multi=True)
-        if i != 0:
-            plt.yticks([])
-            continue
+    # Form subplots
+    f, axes = plt.subplots(1, nplots, sharex=True, sharey=True, figsize=(12,5))
 
-        plt.yticks(np.arange(len(ticks)), ticks)
-        plt.ylabel("Baseline length (short to long)")
-    color_bar = plt.colorbar().set_label("log10((mK)^2)")
+    # Loop through each subplot and plot
+    for i, ax in enumerate(axes):
+        npz_name = npz_names[i]
+        data = np.load(npz_names[i])
+        npz_name = npz_name.split('/')[-1]
+        delay_start = data['dlys'][0]
+        delay_end = data['dlys'][-1]
+        wedgeslices = data['wdgslc']
+        caldata = data['cldt']
+        lst = data['lst']
 
-    # plt.tight_layout()
-    npz_names = [file.split('/')[-1] for file in npz_names]
-    print npz_names
-    plt.savefig(".".join(npz_names[0].split('.')[0:3] + npz_names[0].split('.')[4:8]) + '.multi.png')
-    # plt.show()
+        ax.set_title(npz_name.split('.')[3])
+
+        if 'SIM' in npz_name:
+            vmax = -2
+            vmin = -12
+        else:
+            vmax = 1
+            vmin = -3
+
+        plot = ax.imshow(
+            wedgeslices,
+            aspect='auto',
+            interpolation='nearest',
+            extent=[delay_start, delay_end, len(wedgeslices), 0],
+            vmin=vmin,
+            vmax=vmax)
+
+        ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+        
+        horizons = []
+        for baseline in sorted(caldata[1].keys()):
+            for slope in sorted(caldata[1][baseline].keys()):
+                horizons.append(baseline / sc.c * 10**9)
+
+        for j in range(len(horizons)):
+            x1, y1 = [horizons[j], horizons[j]], [j, j+1] 
+            x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
+            ax.plot(x1, y1, 'w', x2, y2, 'w')
+
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+
+    # Smooshes the plots together
+    f.subplots_adjust(wspace=0)
+    
+    plt.xlim((-450, 450))
+    ticks = []
+    for baseline in sorted(caldata[1].keys()):
+        for slope in sorted(caldata[1][baseline].keys()):
+            ticks.append("{:.3}: {:8.3}".format(baseline, slope))
+    plt.yticks(np.arange(len(ticks)), ticks)
+    
+    # X and Y axis labels
+    f.text(0.5, 0.025, 'Delay [ns]', ha='center')
+    f.text(0.025, 0.5, 'Baseline Length [m]: Orientation', va='center', rotation='vertical')    
+    
+    # Colorbar
+    cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
+    cbar = f.colorbar(plot, cax=cbar_ax)
+    cbar.set_label(r'$\log_{10}({\rm mK}^2)$')
+
+    # Naming and saving
+    pols = [npz_name.split('.')[3] for npz_name in npz_names]
+    pols = ["".join(pols)]
+    f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
+    npz_name = ".".join(f1 + pols + f2)
+    print(path + npz_name + '.png')
+    plt.savefig(path + npz_name + '.png')
+
+    plt.show()
 
 def plot_bltype(npz_name):
 
@@ -710,7 +863,7 @@ def plot_1D(npz_name, baselines=[]):
     
     axes = plt.subplot(G[:,0:4])
     for i in baselines:
-        plt.plot(plot_data['dlys'], plot_data['wdgslc'][i], label='bl len '+str(plot_data['bls'][i]))
+        plt.plot(plot_data['dlys'], plot_data['wdgslc'][i], label='bl len '+str(plot_data['cldt'][3][i]))
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
     plt.legend(loc='upper left')
