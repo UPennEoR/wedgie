@@ -454,6 +454,7 @@ def wedge_delayavg(npz_name, multi=False):
 
 # Plotting Functions:
 def plot_timeavg(npz_name, path):
+    #load and format data
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
     delay_start = data['dlys'][0]
@@ -462,6 +463,7 @@ def plot_timeavg(npz_name, path):
     caldata = data['cldt']
     lst = data['lst']
 
+    #sets max/min values to plot depending on if its simulated data
     if 'SIM' in npz_name:
         vmax = -2
         vmin = -12
@@ -469,39 +471,51 @@ def plot_timeavg(npz_name, path):
         vmax = 1
         vmin = -3
 
+    #format data so y axis properly scaled
+    plotindeces=[int(round(i*10)) for i in caldata[3]]
+    plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
+    j=0
+    for i in range(len(plotindeces)):
+        plotdata[j:plotindeces[i]]=wedgeslices[i]
+        j=plotindeces[i]
+        
+    #plot the data
     plt.imshow(
-        wedgeslices,
+        plotdata,
         aspect='auto',
         interpolation='nearest',
-        extent=[delay_start, delay_end, len(wedgeslices), 0],
+        extent=[delay_start, delay_end, plotindeces[-1], 0],
         vmin=vmin,
         vmax=vmax)
 
+    #label colorbar and axes, format axes
     plt.colorbar().set_label(r'$\log_{10}({\rm mK}^2)$')
-
     plt.xlabel("Delay [ns]")
     plt.xlim((-450, 450))
-    
     plt.ylabel("Baseline Length [m]")
-    plt.yticks(np.arange(len(caldata[3])), [round(n,1) for n in caldata[3]])
+    plt.yticks(plotindeces, [round(n,1) for n in caldata[3]])
  
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    #set titles
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
     plt.title(npz_name.split('.')[3])
 
+    #plot center line
     plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
     
+    #plot horizon lines
     horizons = []
     for length in caldata[3]:
         horizons.append(length / sc.c * 10**9)
-
+    j=0
     for i in range(len(horizons)):
-       x1, y1 = [horizons[i], horizons[i]], [i, i+1] 
-       x2, y2 = [-horizons[i], -horizons[i]], [i, i+1]
-       plt.plot(x1, y1, x2, y2, color='white')
+       x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]] 
+       x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+       plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+       j=plotindeces[i]
 
+    #save and close
     plt.savefig(path + npz_name[:-4] + '.png')
-    
-    # plt.show()
+    plt.show()
     plt.close()
     plt.clf()
 
@@ -532,37 +546,46 @@ def plot_timeavg_multi(npz_names, path):
             vmax = 1
             vmin = -3
 
+        #format data so y axis properly scaled
+        plotindeces=[int(round(i*10)) for i in caldata[3]]
+        plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
+        j=0
+        for i in range(len(plotindeces)):
+            plotdata[j:plotindeces[i]]=wedgeslices[i]
+            j=plotindeces[i]
+
+        #plot the data
         plot = ax.imshow(
-            wedgeslices,
+            plotdata,
             aspect='auto',
             interpolation='nearest',
-            extent=[delay_start, delay_end, len(wedgeslices), 0],
+            extent=[delay_start, delay_end, plotindeces[-1], 0],
             vmin=vmin,
             vmax=vmax)
 
         # Plot center line to easily see peak offset
         ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
         
-        # Calculates horizon lines
+        #plot horizon lines
         horizons = []
         for length in caldata[3]:
             horizons.append(length / sc.c * 10**9)
-
-        # Plots horizon lines
-        for j in range(len(horizons)):
-           x1, y1 = [horizons[j], horizons[j]], [j, j+1] 
-           x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
-           ax.plot(x1, y1, x2, y2, color='white')
+        j=0
+        for i in range(len(horizons)):
+           x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]] 
+           x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+           ax.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+           j=plotindeces[i]
 
         del npz_name
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
     
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
     
     plt.xlim((-450, 450))
-    plt.yticks(np.arange(len(caldata[3])), [round(n,1) for n in caldata[3]])
+    plt.yticks(plotindeces, [round(n,1) for n in caldata[3]])
     
     # X and Y axis labels
     f.text(0.5, 0.025, 'Delay [ns]', ha='center')
@@ -607,7 +630,7 @@ def plot_blavg(npz_name, path):
     plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
     plt.xlabel("Delay [ns]")
     plt.ylabel("Time [min]")
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
     plt.title(npz_name.split('.')[3])
  
     # Loop through each wedgeslice, and imshow each in its own subplot
@@ -665,7 +688,7 @@ def plot_flavors(npz_name, path):
     
     plt.ylabel("Baseline Length [m]: Orientation")
  
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
     plt.title(npz_name.split('.')[3])
 
     plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
@@ -736,7 +759,7 @@ def plot_flavors_multi(npz_names, path):
             x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
             ax.plot(x1, y1, 'w', x2, y2, 'w')
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[1][0], end=lst[1][-1]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
