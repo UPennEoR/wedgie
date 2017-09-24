@@ -17,7 +17,6 @@ import scipy.constants as sc
 import gen_utils as gu
 import cosmo_utils as cu
 import matplotlib.image as mpimg
-from time import time
 
 # For Interactive Development
 from IPython import embed
@@ -155,19 +154,13 @@ class Wedge(object):
 
         self.caldata = (antdict, slopedict, pairs, sorted(list(baselines)), sorted(list(slopes)))
 
-    def cleanfft(self, pair, clean=1e-9):
+    def cleanfft(self, pair, clean=1e-3):
         # FFT
         w = aipy.dsp.gen_window(self.data[pair][self.pol].shape[-1], window='blackman-harris')
         _dw = np.fft.ifft(self.data[pair][self.pol] * w)
 
         # CLEAN
-        # This needs some work
         _ker= np.fft.ifft(self.flags[pair][self.pol] * w)
-        # if not np.any(self.flags[pair][self.pol]) is True:
-        #     _ker= np.fft.ifft(w) 
-        # else:
-        #     _ker= np.fft.ifft(self.flags[pair][self.pol] * w)
-
         gain = aipy.img.beam_gain(_ker)
         for time in range(_dw.shape[0]):
             _dw[time, :], info = aipy.deconv.clean(_dw[time, :], _ker[time, :], tol=clean)
@@ -185,7 +178,7 @@ class Wedge(object):
             self.zenith = aipy.phs.RadioFixedBody(lst, self.aa.lat)
             self.zenith.compute(self.aa)
 
-            self.lst_range.append( (lst, str(lst)) )
+            self.lst_range.append((lst, str(lst)))
 
             if i % 2:
                 v1 = self.fft_2Ddata[i - 1, :]
@@ -266,6 +259,12 @@ class Wedge(object):
     def load_file(self):
         """Loads data with given polarization, self.pol, from files, self.files"""
         self.info, self.data, self.flags = capo.miriad.read_files(self.files[self.pol], antstr='cross', polstr=self.pol)
+
+    def format_flags(self):
+        """Turns flags from False/True --> 1/0."""
+        for i in self.flags:
+            for j in self.flags[i]:
+                    self.flags[i][j] = np.logical_not(self.flags[i][j]).astype(int)
 
     # Wedge creating methods:
     def timeavg(self):
@@ -496,7 +495,7 @@ def plot_timeavg(npz_name, path):
     plt.yticks(plotindeces, [round(n,1) for n in caldata[3]])
  
     #set titles
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
     plt.title(npz_name.split('.')[3])
 
     #plot center line
@@ -579,7 +578,7 @@ def plot_timeavg_multi(npz_names, path):
 
         del npz_name
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
     
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
@@ -604,7 +603,7 @@ def plot_timeavg_multi(npz_names, path):
     npz_name = ".".join(f1 + pols + f2)
     plt.savefig(path + npz_name + '.png')
 
-    # plt.show()
+    plt.show()
     plt.close()
     plt.clf()
 
@@ -630,7 +629,7 @@ def plot_blavg(npz_name, path):
     plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
     plt.xlabel("Delay [ns]")
     plt.ylabel("Time [min]")
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
     plt.title(npz_name.split('.')[3])
  
     # Loop through each wedgeslice, and imshow each in its own subplot
@@ -688,7 +687,7 @@ def plot_flavors(npz_name, path):
     
     plt.ylabel("Baseline Length [m]: Orientation")
  
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
     plt.title(npz_name.split('.')[3])
 
     plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
@@ -759,7 +758,7 @@ def plot_flavors_multi(npz_names, path):
             x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
             ax.plot(x1, y1, 'w', x2, y2, 'w')
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][:-6], end=lst[-1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
