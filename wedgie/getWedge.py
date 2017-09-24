@@ -11,6 +11,7 @@ import argparse, multiprocessing, os
 import wedge_utils as wu
 import numpy as np
 from copy import deepcopy
+from time import time
 
 # For Interactive Decelopment
 from IPython import embed
@@ -217,6 +218,7 @@ class Batch(object):
             for pol in self.pols:
                 wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
                 exec('wedge.form_stokes{}()'.format(pol))
+                wedge.format_flags()
                 
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')
@@ -241,6 +243,7 @@ class Batch(object):
             for pol in self.pols:
                 wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
                 wedge.load_file()
+                wedge.format_flags()
 
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')
@@ -270,48 +273,55 @@ class Batch(object):
         for pol in self.pols:
             pol_files = []
             for file in self.args.filenames:
-                if pol in file.split('/')[-1]:
+                if '.{}.'.format(pol) in file.split('/')[-1]:
                     pol_files.append(file)
 
             self.files[pol] = pol_files
 
-
-
         for pol in self.files.copy():
-
-            for i in range(len(self.files[pol])-1):
+            while len(self.files[pol]) > 1:
                 file_0 = self.files[pol][0]
+                file_1 = self.files[pol][1]
+
                 data_0 = np.load(file_0)
+                data_1 = np.load(file_1)
+                
+                caldata = data_0['cldt']
+                delays = data_0['dlys']
 
                 cwedge_0 = data_0['cwdgslc']
-                delays = data_0['dlys']
-                caldata = data_0['cldt']
-                lst = data_0['lst']
+                cwedge_1 = data_1['cwdgslc']
+
+                cwedgeslices = (cwedge_0 + cwedge_1) / 2
+                wedgeslices = np.log10(np.fft.fftshift(np.abs(cwedgeslices)))
+                wedgeslices = np.concatenate((wedgeslices[4:], wedgeslices[:4]), axis=0)
+
+                lst_0 = data_0['lst']
+                lst_1 = data_1['lst']
+                lst = np.concatenate((lst_0, lst_1), axis=0)
 
                 start = file_0.split('/')[-1].split('.')[2].split('_')[0]
-
-
-                file_i = self.files[pol][1]
-                data_i = np.load(file_i)
-                cwedge_i = data_i['cwdgslc']
-
-                cwedge = []
-                for O, i in zip(cwedge_0, cwedge_i):
-                    cwedge.append( (O + i) / 2 )
-                wedge = np.log10(np.fft.fftshift(np.abs(cwedge)))
-
-                end = file_i.split('/')[-1].split('.')[2].split('_')[1]
+                end = file_1.split('/')[-1].split('.')[2].split('_')[1]
                 time_rng = ['_'.join([start,end])]
-                npz_name = file_0.split('/')[-1].split('.')[:2] + time_rng + file_i.split('/')[-1].split('.')[3:]
+                npz_name = file_0.split('/')[-1].split('.')[:2] + time_rng + file_1.split('/')[-1].split('.')[3:]
                 npz_name = '.'.join(npz_name)
-
-                np.savez(npz_name, cwdgslc=cwedge, wdgslc=wedge, dlys=delays, cldt=caldata, pol=pol, lst=lst)
-
-                os.remove(file_0)
-                os.remove(file_i)
+                np.savez(npz_name, cwdgslc=cwedgeslices, wdgslc=wedgeslices, dlys=delays, cldt=caldata, pol=pol, lst=lst)
 
                 self.files[pol][0] = npz_name
                 del self.files[pol][1]
+
+                os.remove(file_0)
+                os.remove(file_1)
+
+"""
+for i in range(len(cwedgeslices)):
+    row = np.log10(np.fft.fftshift(np.abs(cwedgeslices[i])))
+    for j in range(len(wedgeslices)):
+        if np.all(row == wedgeslices[j]):
+            print i+1, j+1
+"""
+
+# '../../HERATempTest/zen.2457755.11978_13497.98570_99330.IQUV.0_1023.HH.SIM.timeavg/npzs/zen.2457755.11978_13497.I.0_1023.HH.SIM.timeavg.npz'
 
 zen = Batch(args)
 
