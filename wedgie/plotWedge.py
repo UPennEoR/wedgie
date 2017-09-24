@@ -55,7 +55,7 @@ class Graph(object):
                 else:
                     raise Exception(self.MISSING_TAG_ERR)
 
-        if self.args.multi:
+        elif self.args.multi:
             for index in range(0, len(self.files), 4):
                 files = self.files[index:index+4]
                 if self.args.timeavg:
