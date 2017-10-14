@@ -7,14 +7,12 @@ Austin Fox Fortino <fortino_at_sas.upenn.edu>
 Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
-import argparse, multiprocessing, os
+import argparse
+import multiprocessing
+import os
 import wedge_utils as wu
 import numpy as np
 from copy import deepcopy
-from time import time
-
-# For Interactive Decelopment
-from IPython import embed
 
 parser = argparse.ArgumentParser()
 
@@ -128,7 +126,7 @@ class Batch(object):
     def format_pols(self):
         """Format the polarizations, e.g.: translating from IQUV to xx,xy,yx,yy"""
         stokes_pols = ['I', 'Q', 'U', 'V']
-        standard_pols = ['xx','xy','yx','yy']
+        standard_pols = ['xx', 'xy', 'yx', 'yy']
 
         self.pols = self.args.pol.split(',')
 
@@ -184,7 +182,7 @@ class Batch(object):
 
         for count, index in enumerate(range(0, num_files_unique, self.step)):
             for pol in self.file_pols:
-                self.files[pol] = self.files[pol][index : index + self.step]
+                self.files[pol] = self.files[pol][index:index + self.step]
 
             self.logic()
             # if (count+1) % self.load:
@@ -203,7 +201,7 @@ class Batch(object):
 
         for count, index in enumerate(range(0, num_files_unique, self.stair)):
             for pol in self.file_pols:
-                self.files[pol] = self.files[pol][0 : index]
+                self.files[pol] = self.files[pol][0:index]
 
             self.logic()
             # if (count+1) % self.load:
@@ -219,7 +217,7 @@ class Batch(object):
                 wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
                 exec('wedge.form_stokes{}()'.format(pol))
                 wedge.format_flags()
-                
+
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')
                     wedge.timeavg()
@@ -279,7 +277,6 @@ class Batch(object):
 
             self.files[pol] = pol_files
 
-
         for pol in self.pols:
 
             # Load data from the first file to start out with
@@ -320,15 +317,6 @@ class Batch(object):
             for npz in self.files[pol]:
                 os.remove(npz)
 
-"""
-for i in range(len(cwedgeslices)):
-    row = np.log10(np.fft.fftshift(np.abs(cwedgeslices[i])))
-    for j in range(len(wedgeslices)):
-        if np.all(row == wedgeslices[j]):
-            print i+1, j+1
-"""
-
-# '../../HERATempTest/zen.2457755.11978_13497.98570_99330.IQUV.0_1023.HH.SIM.timeavg/npzs/zen.2457755.11978_13497.I.0_1023.HH.SIM.timeavg.npz'
 
 zen = Batch(args)
 

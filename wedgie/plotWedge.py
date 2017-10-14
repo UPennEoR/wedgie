@@ -7,8 +7,8 @@ Austin Fox Fortino <fortino_at_sas.upenn.edu>
 Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
-import argparse, wedge_utils as wu
-from IPython import embed
+import argparse
+import wedge_utils as wu
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-F', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)
@@ -24,6 +24,7 @@ parser.add_argument('-l', '--bl_type', help='Plot non-averaged plots for given b
 parser.add_argument('-o', '--one_D', help="Plot (optional: specified as comma delimited list) baselines' wedges on a 1D plot from supplied npz file", default=None, const='all', nargs='?', action='store')
 parser.add_argument('-P', '--path', default='./')
 args = parser.parse_args()
+
 
 class Graph(object):
     def __init__(self, args):
@@ -45,7 +46,7 @@ class Graph(object):
                 elif self.args.bl_type:
                     wu.plot_bltype(file)
                 elif self.args.delay:
-                    wu.plot_delayavg(file)  
+                    wu.plot_delayavg(file)
                 elif self.args.one_D:
                     if self.args.one_D == 'all':
                         baselines = []
@@ -69,6 +70,7 @@ class Graph(object):
 
         elif self.args.avg:
             wu.plot_avgs(self.files)
+
 
 graph = Graph(args)
 graph.logic()
