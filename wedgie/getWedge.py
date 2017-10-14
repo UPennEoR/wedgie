@@ -270,6 +270,7 @@ class Batch(object):
     def combine(self):
         self.pols = self.args.pol.split(',')
 
+        # This sets up the format of self.files to be {pol: [file1, file2, ...]}
         for pol in self.pols:
             pol_files = []
             for file in self.args.filenames:
@@ -278,40 +279,46 @@ class Batch(object):
 
             self.files[pol] = pol_files
 
-        for pol in self.files.copy():
-            while len(self.files[pol]) > 1:
-                file_0 = self.files[pol][0]
-                file_1 = self.files[pol][1]
 
-                data_0 = np.load(file_0)
-                data_1 = np.load(file_1)
-                
-                caldata = data_0['cldt']
-                delays = data_0['dlys']
+        for pol in self.pols:
 
-                cwedge_0 = data_0['cwdgslc']
-                cwedge_1 = data_1['cwdgslc']
+            # Load data from the first file to start out with
+            # Grab the delays and caldata which will be the same for every file
+            # Grab the lst range which will eventually be combined with every other file's lst range
+            file_0 = self.files[pol][0]
+            data_0 = np.load(file_0)
+            caldata = data_0['cldt']
+            delays = data_0['dlys']
+            cwedgeslices = data_0['cwdgslc']
+            lst = data_0['lst']
 
-                cwedgeslices = (cwedge_0 + cwedge_1) / 2
-                wedgeslices = np.log10(np.fft.fftshift(np.abs(cwedgeslices)))
-                wedgeslices = np.concatenate((wedgeslices[4:], wedgeslices[:4]), axis=0)
+            # Cycle through the rest of the files in the polarization
+            # Add to rolling sum of cwedgeslice data
+            # Combine lst ranges
+            for i, npz in enumerate(self.files[pol]):
+                file = self.files[pol][i]
+                data = np.load(file)
+                cwedgeslices += data['cwdgslc']
+                lst = np.concatenate((lst, data['lst']), axis=0)
 
-                lst_0 = data_0['lst']
-                lst_1 = data_1['lst']
-                lst = np.concatenate((lst_0, lst_1), axis=0)
+            # Average together cwedgeslices
+            cwedgeslices /= len(self.files[pol])
 
-                start = file_0.split('/')[-1].split('.')[2].split('_')[0]
-                end = file_1.split('/')[-1].split('.')[2].split('_')[1]
-                time_rng = ['_'.join([start,end])]
-                npz_name = file_0.split('/')[-1].split('.')[:2] + time_rng + file_1.split('/')[-1].split('.')[3:]
-                npz_name = '.'.join(npz_name)
-                np.savez(npz_name, cwdgslc=cwedgeslices, wdgslc=wedgeslices, dlys=delays, cldt=caldata, pol=pol, lst=lst)
+            # Take the log of the fftshift of the abs of the cwedgeslices (to make wedgeslices)
+            wedgeslices = np.log10(np.fft.fftshift(np.abs(cwedgeslices), axes=1))
 
-                self.files[pol][0] = npz_name
-                del self.files[pol][1]
+            # wedgeslices = np.concatenate((wedgeslices[4:], wedgeslices[:4]), axis=0)
 
-                os.remove(file_0)
-                os.remove(file_1)
+            # Naming and Saving
+            start = file_0.split('/')[-1].split('.')[2].split('_')[0]
+            end = file.split('/')[-1].split('.')[2].split('_')[1]
+            time_rng = ['_'.join([start, end])]
+            npz_name = '.'.join(file_0.split('/')[-1].split('.')[:2] + time_rng + file.split('/')[-1].split('.')[3:])
+            np.savez(npz_name, cwdgslc=cwedgeslices, wdgslc=wedgeslices, dlys=delays, cldt=caldata, pol=pol, lst=lst)
+
+            # Remove npz files that have been combined
+            for npz in self.files[pol]:
+                os.remove(npz)
 
 """
 for i in range(len(cwedgeslices)):
