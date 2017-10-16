@@ -12,7 +12,12 @@ import multiprocessing
 import os
 import wedge_utils as wu
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from astropy import units as u
+import scipy.constants as sc
 from copy import deepcopy
+from IPython import embed
 
 parser = argparse.ArgumentParser()
 
@@ -37,7 +42,7 @@ parser.add_argument('-X',
 parser.add_argument('-V',
                     '--path',
                     help='Input the path to where you want your files to be saved.',
-                    default='./')
+                    default='')
 
 # Parameters for Changing What is Analyzed
 parser.add_argument('-S',
@@ -59,6 +64,9 @@ parser.add_argument('-R',
                     '--freq_range',
                     help='Input a range of frequency channels to use separated by an underscore: "550_650"',
                     default='0_1023')
+parser.add_argument('-D',
+                    '--Difference',
+                    action='store_true')
 
 # Types of Wedges
 # Only One Can Be Used
@@ -220,10 +228,12 @@ class Batch(object):
 
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')
+                    wedge.starter()
                     wedge.timeavg()
 
                 elif self.args.blavg:
                     wedge.name_npz('blavg')
+                    wedge.starter()
                     wedge.blavg()
 
                 elif self.args.flavors:
@@ -236,6 +246,10 @@ class Batch(object):
 
                 else:
                     raise Exception(self.MISSING_TAG_ERR)
+
+                wedge.form_times()
+                wedge.form_delays()
+                wedge.savenpz()
 
         elif self.pol_type == 'standard':
             for pol in self.pols:
@@ -245,10 +259,12 @@ class Batch(object):
 
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')
+                    wedge.starter()
                     wedge.timeavg()
 
                 elif self.args.blavg:
                     wedge.name_npz('blavg')
+                    wedge.starter()
                     wedge.blavg()
 
                 elif self.args.flavors:
@@ -262,6 +278,9 @@ class Batch(object):
                 else:
                     raise Exception(self.MISSING_TAG_ERR)
 
+                wedge.form_times()
+                wedge.form_delays()
+                wedge.savenpz()
         else:
             raise Exception("Polarization type not understood, be sure you have correctly specified the polarizations you want.")
 
@@ -317,8 +336,108 @@ class Batch(object):
             for npz in self.files[pol]:
                 os.remove(npz)
 
+    def difference(self):
+        if len(self.args.filenames) > 2:
+            raise Exception('Can only take the difference of two wedges. Provide only two files.')
+
+        file1 = self.args.filenames[0]
+        data1 = np.load(file1)
+        cwedge1, times1 = data1['cwslices'], data1['times'][:, 1::2]
+
+        file2 = self.args.filenames[1]
+        data2 = np.load(file2)
+        cwedge2, times2 = data2['cwslices'], data2['times'][:, 1::2]
+
+        if np.all(data1['delays'] == data2['delays']) and np.all(data1['caldata'] == data2['caldata']):
+            delays = data1['delays']
+            caldata = data1['caldata']
+        else:
+            raise Exception('delays and caldata arrays are not the same.')
+
+        for i, time in enumerate(times1[0]):
+            if time >= times2[0, 0]:
+                start = i
+                break
+
+        for i, time in enumerate(times2[0]):
+            if time >= times1[0, -1]:
+                end = i
+                break
+
+        times1 = times1[:, start:]
+        times2 = times2[:, :end]
+
+        cwedge1 = np.mean(cwedge1[:, start:, :], axis=1)
+        cwedge2 = np.mean(cwedge2[:, :end, :], axis=1)
+
+        wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=0)
+
+        # Plot difference data.
+        plotindeces = [int(round(i*10)) for i in caldata[3]]
+        plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
+        j = 0
+        for i in range(len(plotindeces)):
+            plotdata[j:plotindeces[i]] = wedgeslices[i]
+            j = plotindeces[i]
+
+        plt.imshow(
+            plotdata,
+            aspect='auto',
+            interpolation='nearest',
+            extent=[delays[0], delays[-1], plotindeces[-1], 0],
+            vmin=0,
+            vmax=0.025)
+
+        plt.colorbar().set_label('Linear Difference')
+        plt.xlabel("Delay [ns]")
+        plt.xlim((-450, 450))
+        plt.ylabel("Baseline Length [m]")
+        plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
+
+        plt.suptitle("JD: {JD1} - {JD2}; LST {start} to {end}".format(
+            JD1=file1.split('.')[1], JD2=file2.split('.')[1], start=times1[1][0][:-6], end=times2[1][-1][:-6]))
+        plt.title(file1.split('.')[3])
+
+        plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+
+        horizons = []
+        for length in caldata[3]:
+            horizons.append(length / sc.c * 10**9)
+        j = 0
+        for i in range(len(horizons)):
+            x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
+            x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+            plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+            j = plotindeces[i]
+
+        file1 = file1.split('/')[-1].split('.')
+        file2 = file2.split('/')[-1].split('.')
+
+        time1 = ['_'.join(file1[1:3])]
+        time2 = ['_'.join(file2[1:3])]
+        time = ['-'.join(time1 + time2)]
+
+        end1 = file1[3:-2]
+        end2 = file2[3:-2]
+
+        zen1 = [file1[0]]
+        zen2 = [file2[0]]
+
+        if end1 != end2 or zen1 != zen2:
+            raise Exception('You did not supply the same type of file!')
+
+        file = '.'.join(zen1 + time + end1)
+
+        plt.savefig(self.args.path + file + '.diff.png')
+        plt.show()
+        plt.close()
+        plt.clf()
+
 
 zen = Batch(args)
+if args.Difference:
+    zen.difference()
+    quit()
 
 if args.combine:
     zen.combine()
