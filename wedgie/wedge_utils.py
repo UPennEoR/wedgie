@@ -17,11 +17,11 @@ import matplotlib as mpl
 import numpy as np
 import scipy.constants as sc
 import gen_utils as gu
-# import cosmo_utils as cu
-# import matplotlib.image as mpimg
+import cosmo_utils as cu
+import matplotlib.image as mpimg
 
 # For Interactive Development
-# from IPython import embed
+from IPython import embed
 
 
 class Wedge(object):
@@ -40,6 +40,7 @@ class Wedge(object):
         self.data = None
         self.flags = None
         self.aa = None
+        self.bl_length = int()
         self.vis_sq_bl = None
         self.vis_sq_slope = None
         self.vis_sq_antpair = None
@@ -49,7 +50,13 @@ class Wedge(object):
         self.wedgeslices = list()
         self.cwedgeslices = list()
         self.antpairslices = list()
-        self.lst_range = list()
+
+        self.lst = int()
+        self.lst_range_str = list()
+        self.lst_range_num = list()
+        self.times = list()
+
+        self.delays = list()
 
         decimal.getcontext().prec = 6
         self.calculate_caldata()
@@ -178,11 +185,11 @@ class Wedge(object):
                 old_zenith = self.zenith
             time = self.info['times'][i]
             self.aa.set_jultime(time)
-            lst = self.aa.sidereal_time()
-            self.zenith = aipy.phs.RadioFixedBody(lst, self.aa.lat)
+            self.lst = self.aa.sidereal_time()
+            self.lst_range_str.append(str(self.lst))
+            self.lst_range_num.append(self.lst)
+            self.zenith = aipy.phs.RadioFixedBody(self.lst, self.aa.lat)
             self.zenith.compute(self.aa)
-
-            self.lst_range.append((lst, str(lst)))
 
             if i % 2:
                 v1 = self.fft_2Ddata[i - 1, :]
@@ -264,93 +271,21 @@ class Wedge(object):
         """Loads data with given polarization, self.pol, from files, self.files"""
         self.info, self.data, self.flags = capo.miriad.read_files(self.files[self.pol], antstr='cross', polstr=self.pol)
 
+    # Format flags for correct application:
     def format_flags(self):
         """Turns flags from False/True --> 1/0."""
         for i in self.flags:
             for j in self.flags[i]:
                     self.flags[i][j] = np.logical_not(self.flags[i][j]).astype(int)
 
-    # Wedge creating methods:
+    # Types of Wedge creating methods:
     def timeavg(self):
-        """Create a pitchfork that is time averaged and averaged over each baseline."""
-        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
-        for antpair in self.data.keys():
-            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
-            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
-
-        ntimes = len(self.info['times'])
-        nchan = len(self.info['freqs'])
-
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
-        del uv
-        self.aa.set_active_pol(self.pol)
-
-        for baselength in sorted(self.caldata[0]):
-            self.vis_sq_bl = np.zeros((ntimes//2, nchan), dtype=np.complex128)
-            for antpair in self.caldata[0][baselength]:
-                self.vis_sq_antpair = np.zeros((ntimes//2, nchan), dtype=np.complex128)
-                self.cleanfft(antpair)
-                self.phasing(ntimes, antpair)
-                self.vis_sq_bl += self.vis_sq_antpair
-            self.vis_sq_bl /= len(self.caldata[0][baselength])
-            self.cwedgeslices.append(np.mean(self.vis_sq_bl, axis=0))
-            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(self.vis_sq_bl, axis=0)))))
-            print('Wedgeslice for baselength {} complete.'.format(baselength))
-
-        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
-        num_bins = len(self.info['freqs'])
-        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
-
-        np.savez(
-            self.npz_name,
-            cwdgslc=self.cwedgeslices,
-            wdgslc=self.wedgeslices,
-            dlys=delays,
-            pol=self.pol,
-            cldt=self.caldata,
-            lst=self.lst_range,
-            hist=self.history)
+        for wslice in self.cwedgeslices:
+            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(wslice, axis=0)))))
 
     def blavg(self):
-        """Create a pitchfork that is averaged over each baseline"""
-        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
-        for antpair in self.data.keys():
-            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
-            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
-
-        ntimes = len(self.info['times'])
-        nchan = len(self.info['freqs'])
-
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
-        del uv
-        self.aa.set_active_pol(self.pol)
-
-        for baselength in sorted(self.caldata[0]):
-            self.vis_sq_bl = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
-            for antpair in self.caldata[0][baselength]:
-                self.vis_sq_antpair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
-                self.cleanfft(antpair)
-                self.phasing(ntimes, antpair)
-                self.vis_sq_bl += self.vis_sq_antpair
-            self.vis_sq_bl /= len(self.caldata[0][baselength])
-            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(self.vis_sq_bl), axes=1)))
-            print('Wedgeslice for baselength {} complete.'.format(baselength))
-
-        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
-        num_bins = len(self.info['freqs'])
-        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
-
-        np.savez(
-            self.npz_name,
-            times=self.info['times'],
-            wdgslc=self.wedgeslices,
-            dlys=delays,
-            pol=self.pol,
-            cldt=self.caldata,
-            lst=self.lst_range,
-            hist=self.history)
+        for wslice in self.cwedgeslices:
+            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(wslice), axes=1)))
 
     def flavors(self):
         """Create a pitchfork averaged over baseline orientation and in time"""
@@ -380,19 +315,6 @@ class Wedge(object):
                 self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(self.vis_sq_slope, axis=0)))))
                 print('Wedgeslice for baseline {} and slope {} complete.'.format(baselength, slope))
 
-        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
-        num_bins = len(self.info['freqs'])
-        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
-
-        np.savez(
-            self.npz_name,
-            wdgslc=self.wedgeslices,
-            dlys=delays,
-            pol=self.pol,
-            cldt=self.caldata,
-            lst=self.lst_range,
-            hist=self.history)
-
     def bltype(self):
         """Create a plot with a wedgeslice for each antenna pair from a given baselength"""
         self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
@@ -409,8 +331,8 @@ class Wedge(object):
         self.aa.set_active_pol(self.pol)
 
         bl_type = self.args.bl_type - 1
-        length = self.caldata[3][bl_type]
-        antpairs = self.caldata[0][length]
+        self.bl_length = self.caldata[3][bl_type]
+        antpairs = self.caldata[0][self.bl_length]
 
         for antpair in antpairs:
             self.vis_sq_antpair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
@@ -420,26 +342,63 @@ class Wedge(object):
             self.antpairslices.append(np.log10(np.fft.fftshift(np.abs(self.vis_sq_antpair), axes=1)))
             print('Wedgeslice for antenna pair {} complete.'.format(antpair))
 
+    # Wedge Creation
+    def starter(self):
+        self.info['freqs'] = self.info['freqs'][self.freq_range[0]:self.freq_range[1]]
+        for antpair in self.data.keys():
+            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.freq_range[0]:self.freq_range[1]]
+
+        ntimes = len(self.info['times'])
+        nchan = len(self.info['freqs'])
+
+        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        del uv
+        self.aa.set_active_pol(self.pol)
+
+        for baselength in sorted(self.caldata[0]):
+            self.vis_sq_bl = np.zeros((ntimes//2, nchan), dtype=np.complex128)
+            for antpair in self.caldata[0][baselength]:
+                self.vis_sq_antpair = np.zeros((ntimes//2, nchan), dtype=np.complex128)
+                self.cleanfft(antpair)
+                self.phasing(ntimes, antpair)
+                self.vis_sq_bl += self.vis_sq_antpair
+            self.vis_sq_bl /= len(self.caldata[0][baselength])
+            self.cwedgeslices.append(self.vis_sq_bl)
+
+    def form_times(self):
+        self.lst_range_str = np.unique(self.lst_range_str)
+        self.lst_range_num = np.unique(self.lst_range_num)
+        self.lst_range = np.vstack((self.lst_range_num, self.lst_range_str))
+        self.times = np.vstack((self.lst_range, self.info['times']))
+
+    def form_delays(self):
         channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
         num_bins = len(self.info['freqs'])
-        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+        self.delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
 
+    def savenpz(self):
         np.savez(
             self.npz_name,
-            antslc=self.antpairslices,
-            dlys=delays,
             pol=self.pol,
-            antprs=antpairs,
-            length=length,
+            caldata=self.caldata,
+            wslices=self.wedgeslices,
+            cwslices=self.cwedgeslices,
+            aslices=self.antpairslices,
+            delays=self.delays,
+            times=self.times,
+            bl_length=self.bl_length,
             hist=self.history)
+
 
 # Create Wedge from Pitchfork
 def wedge_delayavg(npz_name, multi=False):
 
     plot_data = np.load(npz_name)
     delays, wedgevalues, baselines = plot_data['dlys'], plot_data['cldt'][3], plot_data['cldt'][3]
-    d_start = plot_data['dlys'][0]
-    d_end = plot_data['dlys'][-1]
+    # d_start = plot_data['dlys'][0]
+    # d_end = plot_data['dlys'][-1]
     split = (len(wedgevalues[0, :])/2)
 
     wedgevalues2 = np.zeros((len(wedgevalues), len(delays)))
@@ -455,24 +414,24 @@ def wedge_delayavg(npz_name, multi=False):
     print("got here!!!")
     return npz_delayavg
 
+
 # Plotting Functions:
 def plot_timeavg(npz_name, path):
     # load and format data
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
-    delay_start = data['dlys'][0]
-    delay_end = data['dlys'][-1]
-    wedgeslices = data['wdgslc']
-    caldata = data['cldt']
-    lst = data['lst']
+    delays = data['delays']
+    wedgeslices = data['wslices']
+    caldata = data['caldata']
+    times = data['times']
 
     # sets max/min values to plot depending on if its simulated data
     if 'SIM' in npz_name:
         vmax = -2
         vmin = -12
     else:
-        vmax = 1
-        vmin = -3
+        vmax = -1
+        vmin = -5
 
     # format data so y axis properly scaled
     plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -487,7 +446,7 @@ def plot_timeavg(npz_name, path):
         plotdata,
         aspect='auto',
         interpolation='nearest',
-        extent=[delay_start, delay_end, plotindeces[-1], 0],
+        extent=[delays[0], delays[-1], plotindeces[-1], 0],
         vmin=vmin,
         vmax=vmax)
 
@@ -499,7 +458,7 @@ def plot_timeavg(npz_name, path):
     plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
     # set titles
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
     plt.title(npz_name.split('.')[3])
 
     # plot center line
@@ -535,11 +494,10 @@ def plot_timeavg_multi(npz_names, path):
         npz_name = npz_names[i]
         data = np.load(npz_name)
         npz_name = npz_name.split('/')[-1]
-        delay_start = data['dlys'][0]
-        delay_end = data['dlys'][-1]
-        wedgeslices = data['wdgslc']
-        caldata = data['cldt']
-        lst = data['lst']
+        delays = data['delays']
+        wedgeslices = data['wslices']
+        caldata = data['caldata']
+        times = data['times']
 
         ax.set_title(npz_name.split('.')[3])
 
@@ -547,8 +505,8 @@ def plot_timeavg_multi(npz_names, path):
             vmax = -2
             vmin = -12
         else:
-            vmax = 1
-            vmin = -3
+            vmax = -1
+            vmin = -5
 
         # format data so y axis properly scaled
         plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -563,7 +521,7 @@ def plot_timeavg_multi(npz_names, path):
             plotdata,
             aspect='auto',
             interpolation='nearest',
-            extent=[delay_start, delay_end, plotindeces[-1], 0],
+            extent=[delays[0], delays[-1], plotindeces[-1], 0],
             vmin=vmin,
             vmax=vmax)
 
@@ -583,7 +541,7 @@ def plot_timeavg_multi(npz_names, path):
 
         del npz_name
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
@@ -616,15 +574,13 @@ def plot_timeavg_multi(npz_names, path):
 def plot_blavg(npz_name, path):
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
-    delay_start = data['dlys'][0]
-    delay_end = data['dlys'][-1]
-    wedgeslices = data['wdgslc']
-    caldata = data['cldt']
-    lst = data['lst']
+    delays = data['delays']
+    wedgeslices = data['wslices']
+    caldata = data['caldata']
     times = data['times']
 
     # Format time scale in minutes
-    time_start = (times[-1] - times[0]) * 24*60
+    time_start = (float(times[2][-1]) - float(times[2][0])) * 24*60
     time_end = 0
 
     # create subplot to plot data
@@ -635,7 +591,7 @@ def plot_blavg(npz_name, path):
     plt.tick_params(labelcolor='none', top='off', bottom='off', left='off', right='off')
     plt.xlabel("Delay [ns]")
     plt.ylabel("Time [min]")
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
     plt.title(npz_name.split('.')[3])
 
     # Loop through each wedgeslice, and imshow each in its own subplot
@@ -644,9 +600,9 @@ def plot_blavg(npz_name, path):
             wedgeslices[i],
             aspect='auto',
             interpolation='nearest',
-            extent=[delay_start, delay_end, time_start, time_end],
-            vmin=-3,
-            vmax=1)
+            extent=[delays[0], delays[-1], time_start, time_end],
+            vmax=-1,
+            vmin=-5)
 
         horizon = caldata[3][i] / sc.c * 10**9
         x1, y1 = [horizon, horizon], [time_start, time_end]
@@ -666,24 +622,23 @@ def plot_blavg(npz_name, path):
 def plot_flavors(npz_name, path):
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
-    delay_start = data['dlys'][0]
-    delay_end = data['dlys'][-1]
-    wedgeslices = data['wdgslc']
-    caldata = data['cldt']
-    lst = data['lst']
-
+    delays = data['delays']
+    wedgeslices = data['wslices']
+    caldata = data['caldata']
+    times = data['times']
+    embed()
     if 'SIM' in npz_name:
         vmax = -2
         vmin = -12
     else:
-        vmax = 1
-        vmin = -3
+        vmax = -1
+        vmin = -5
 
     plt.imshow(
         wedgeslices,
         aspect='auto',
         interpolation='nearest',
-        extent=[delay_start, delay_end, len(wedgeslices), 0],
+        extent=[delays[0], delays[-1], len(wedgeslices), 0],
         vmin=vmin,
         vmax=vmax)
 
@@ -694,7 +649,7 @@ def plot_flavors(npz_name, path):
 
     plt.ylabel("Baseline Length [m]: Orientation")
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=times[1][-1][:-6], end=times[1][-1][:-6]))
     plt.title(npz_name.split('.')[3])
 
     plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
@@ -731,11 +686,10 @@ def plot_flavors_multi(npz_names, path):
         npz_name = npz_names[i]
         data = np.load(npz_names[i])
         npz_name = npz_name.split('/')[-1]
-        delay_start = data['dlys'][0]
-        delay_end = data['dlys'][-1]
-        wedgeslices = data['wdgslc']
-        caldata = data['cldt']
-        lst = data['lst']
+        delays = data['delays']
+        wedgeslices = data['wslices']
+        caldata = data['caldata']
+        times = data['times']
 
         ax.set_title(npz_name.split('.')[3])
 
@@ -743,14 +697,14 @@ def plot_flavors_multi(npz_names, path):
             vmax = -2
             vmin = -12
         else:
-            vmax = 1
-            vmin = -3
+            vmax = -1
+            vmin = -5
 
         plot = ax.imshow(
             wedgeslices,
             aspect='auto',
             interpolation='nearest',
-            extent=[delay_start, delay_end, len(wedgeslices), 0],
+            extent=[delays[0], delays[-1], len(wedgeslices), 0],
             vmin=vmin,
             vmax=vmax)
 
@@ -766,7 +720,7 @@ def plot_flavors_multi(npz_names, path):
             x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
             ax.plot(x1, y1, 'w', x2, y2, 'w')
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=lst[0][1][:-6], end=lst[-1][1][:-6]))
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
@@ -799,15 +753,15 @@ def plot_flavors_multi(npz_names, path):
 
 
 def plot_bltype(npz_name):
-
     plot_data = np.load(npz_name)
 
-    d_start = plot_data['dlys'][0]
-    d_end = plot_data['dlys'][-1]
-    t_start = plot_data['antslc'][0].shape[0]
+    d_start = plot_data['delays'][0]
+    d_end = plot_data['delays'][-1]
+    t_start = plot_data['aslices'][0].shape[0]
+    length = float(plot_data['bl_length'])
 
     # create subplot to plot data
-    f, axarr = plt.subplots(len(plot_data['antslc']), 1, sharex=True, sharey=True)
+    f, axarr = plt.subplots(len(plot_data['aslices']), 1, sharex=True, sharey=True)
 
     # add axes labels
     f.add_subplot(111, frameon=False)
@@ -816,19 +770,19 @@ def plot_bltype(npz_name):
     plt.ylabel("Time", labelpad=15)
 
     plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2]+'.'+npz_name.split('.')[3]+'.baseline'+npz_name.split('.')[7])
-    lengthstr = str(plot_data['length'])
+    lengthstr = str(plot_data['bl_length'])
     plt.title('baseline length:'+lengthstr)
 
     # plot individual wedge slices
-    for i in range(len(plot_data['antslc'])):
+    for i in range(len(plot_data['aslices'])):
         # plot the graph
-        im = axarr[i].imshow(plot_data['antslc'][i], aspect='auto', interpolation='nearest', vmin=-9, vmax=1, extent=[d_start, d_end, t_start, 0])
+        im = axarr[i].imshow(plot_data['aslices'][i], aspect='auto', interpolation='nearest', vmin=-9, vmax=1, extent=[d_start, d_end, t_start, 0])
         # plot light delay time lines
-        light_time = (plot_data['length'])/sc.c*10**9
-        x1, y1 = [light_time, light_time], [0, np.shape(plot_data['antslc'][i])[0]]
-        x2, y2 = [-light_time, -light_time], [0, np.shape(plot_data['antslc'][i])[0]]
+        light_time = (plot_data['bl_length'])/sc.c*10**9
+        x1, y1 = [light_time, light_time], [0, np.shape(plot_data['aslices'][i])[0]]
+        x2, y2 = [-light_time, -light_time], [0, np.shape(plot_data['aslices'][i])[0]]
         axarr[i].plot(x1, y1, x2, y2, color='white')
-        axarr[i].set_ylabel(plot_data['antprs'][i], fontsize=6)
+        axarr[i].set_ylabel(plot_data['caldata'][0][length][i], fontsize=6)
 
     cax, kw = mpl.colorbar.make_axes([ax for ax in axarr.flat])
     plt.colorbar(im, cax=cax, **kw)
@@ -844,10 +798,10 @@ def plot_bltype(npz_name):
 def plot_delayavg(npz_delayavg):
 
     plot_data = np.load(npz_delayavg)
-    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['wdgslc'], plot_data['bls']
-    d_start = plot_data['dlys'][0]
-    d_end = plot_data['dlys'][-1]
-    plot = plt.imshow(wedgevalues, aspect='auto', interpolation='nearest', extent=[0, len(npz_delayavg), d_start, d_end], vmin=-3.0, vmax=1.0)
+    wedgevalues, baselines = plot_data['wslices'], plot_data['caldata'][3]
+    d_start = plot_data['delays'][0]
+    d_end = plot_data['delays'][-1]
+    plt.imshow(wedgevalues, aspect='auto', interpolation='nearest', extent=[0, len(npz_delayavg), d_start, d_end], vmin=-3.0, vmax=1.0)
     # plot = plt.imshow(npz_delayavg, aspect='auto', interpolation='nearest',extent=[0,len(wedgevalues),d_start,d_end], vmin=-3.0, vmax=1.0)
 
     plt.xlabel("Baseline length (short to long)")
@@ -860,7 +814,7 @@ def plot_delayavg(npz_delayavg):
 
     # calculate light travel time for each baselength
     light_times = []
-    for length in plot_data['bls']:
+    for length in plot_data['caldata'][3]:
         light_times.append(length/sc.c*10**9)
 
     # plot lines on plot using the light travel time
@@ -872,6 +826,7 @@ def plot_delayavg(npz_delayavg):
     print("got here1")
     plt.savefig(npz_delayavg[:-12]+'delayavg.png')
     plt.show()
+
 
 # 1D Plotting for timeavg wedges
 def plot_1D(npz_name, baselines=[]):
@@ -887,24 +842,24 @@ def plot_1D(npz_name, baselines=[]):
     if len(baselines):
         baselines = [i-1 for i in baselines]
     else:
-        baselines = range(len(plot_data['wdgslc']))
+        baselines = range(len(plot_data['wslices']))
 
     plt.figure(figsize=(12, 6))
     G = gridspec.GridSpec(2, 9)
 
-    axes = plt.subplot(G[:, 0:4])
+    plt.subplot(G[:, 0:4])
     for i in baselines:
-        plt.plot(plot_data['dlys'], plot_data['wdgslc'][i], label='bl len '+str(plot_data['cldt'][3][i]))
+        plt.plot(plot_data['delays'], plot_data['wslices'][i], label='bl len '+str(plot_data['caldata'][3][i]))
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
     plt.legend(loc='upper left')
     plt.ylim((-3.5, 2.0))
 
-    axes = plt.subplot(G[:, 5:9])
+    plt.subplot(G[:, 5:9])
     for i in baselines:
-        plt.plot(plot_data['dlys'], plot_data['wdgslc'][i])
+        plt.plot(plot_data['delays'], plot_data['wslices'][i])
     if len(baselines) == 1:
-        light_time = plot_data['bls'][baselines[0]]/sc.c*10**9
+        light_time = plot_data['caldata'][3][baselines[0]]/sc.c*10**9
         plt.axvline(light_time, color='#d3d3d3', linestyle='--')
         plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
         plt.axvline(0, color='#d3d3d3', linestyle='--')
@@ -929,7 +884,7 @@ def plot_multi_1D(npz_names, baselines=[]):
     if len(baselines):
         baselines = [i-1 for i in baselines]
     else:
-        baselines = range(len(plot_data['wdgslc']))
+        baselines = range(len(plot_data['wslices']))
 
     # set up the plotting space
     plt.figure(figsize=(18, 4))
@@ -941,13 +896,13 @@ def plot_multi_1D(npz_names, baselines=[]):
 
         # load data, format plotting section
         plot_data = np.load(npz_names[n])
-        axes = plt.subplot(G[:, n:n+1])
+        plt.subplot(G[:, n:n+1])
 
         # plot the data
         for i in baselines:
-            plt.plot(plot_data['dlys'], plot_data['wdgslc'][i], label='bl len '+str(plot_data['bls'][i]))
+            plt.plot(plot_data['delays'], plot_data['wslices'][i], label='bl len '+str(plot_data['caldata'][3][i]))
         if len(baselines) == 1:
-            light_time = plot_data['bls'][baselines[0]]/sc.c*10**9
+            light_time = plot_data['caldata'][3][baselines[0]]/sc.c*10**9
             plt.axvline(light_time, color='#d3d3d3', linestyle='--')
             plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
         plt.axvline(0, color='#d3d3d3', linestyle='--')
@@ -965,7 +920,7 @@ def plot_multi_1D(npz_names, baselines=[]):
     npz_name = npz_names[0].split('/')[-1]
     plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2])
 
-    if len(baselines) == len(plot_data['wdgslc']):
+    if len(baselines) == len(plot_data['wslices']):
         blstr = 'allbls'
     else:
         blstr = 'bl'
@@ -976,6 +931,7 @@ def plot_multi_1D(npz_names, baselines=[]):
     plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + "multi1D." + blstr + ".png")
     plt.show()
 
+
 # Inside/Outside Averaging
 def in_out_avg(npz_name):
     data = np.load(npz_name)
@@ -983,18 +939,18 @@ def in_out_avg(npz_name):
     num_files = len(history['filenames'])
 
     light_times = []
-    for length in data['bls']:
+    for length in data['caldata'][3]:
         light_times.append(length / (sc.c * (10**9)))
 
     total_in, total_out = 0, 0
     total_in_count, total_out_count = 0, 0
-    for i in range(len(data['bls'])):
-        for index, delay in enumerate(data['dlys']):
+    for i in range(len(data['caldata'][3])):
+        for index, delay in enumerate(data['delays']):
             if abs(delay) >= light_times[i]:
-                total_out += data['wdgslc'][i][index]
+                total_out += data['wslices'][i][index]
                 total_out_count += 1
             else:
-                total_in += data['wdgslc'][i][index]
+                total_in += data['wslices'][i][index]
                 total_in_count += 1
 
     avg_in = total_in / total_in_count
