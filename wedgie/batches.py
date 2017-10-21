@@ -8,4 +8,4 @@ for day in days:
         day=day, rng=rng))
     folder = "{day}_{rng}".format(day=day, rng=rng)
     os.mkdir(folder)
-    os.system("mv *{day}* {folder}".format(day=day, rng=rng))
+    os.system("mv *{day}* {folder}".format(day=day, folder=folder))
