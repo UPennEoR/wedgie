@@ -7,16 +7,18 @@ Austin Fox Fortino <fortino_at_sas.upenn.edu>
 Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
-import argparse
-import multiprocessing
-import os
-import wedge_utils as wu
+
 import numpy as np
-import matplotlib.pyplot as plt
 import matplotlib as mpl
-from astropy import units as u
+import matplotlib.pyplot as plt
 import scipy.constants as sc
+
+import wedge_utils as wu
+
+import argparse, os, multiprocessing
 from copy import deepcopy
+
+# For Interactive Development
 from IPython import embed
 
 parser = argparse.ArgumentParser()
