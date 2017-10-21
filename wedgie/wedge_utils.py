@@ -8,17 +8,19 @@ Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
 
-import capo
-import aipy
-import decimal
+import capo, aipy
+
+import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import matplotlib as mpl
-import numpy as np
+import matplotlib.image as mpimg
 import scipy.constants as sc
+
 import gen_utils as gu
 import cosmo_utils as cu
-import matplotlib.image as mpimg
+
+import decimal
 
 # For Interactive Development
 from IPython import embed
@@ -185,9 +187,11 @@ class Wedge(object):
                 old_zenith = self.zenith
             time = self.info['times'][i]
             self.aa.set_jultime(time)
+
             self.lst = self.aa.sidereal_time()
             self.lst_range_str.append(str(self.lst))
             self.lst_range_num.append(self.lst)
+
             self.zenith = aipy.phs.RadioFixedBody(self.lst, self.aa.lat)
             self.zenith.compute(self.aa)
 
@@ -566,8 +570,8 @@ def plot_timeavg_multi(npz_names, path):
     npz_name = ".".join(f1 + pols + f2)
     plt.savefig(path + npz_name + '.png')
 
-    plt.show()
-    plt.close()
+    # plt.show()
+    # plt.close()
     plt.clf()
 
 
@@ -626,7 +630,7 @@ def plot_flavors(npz_name, path):
     wedgeslices = data['wslices']
     caldata = data['caldata']
     times = data['times']
-    embed()
+
     if 'SIM' in npz_name:
         vmax = -2
         vmin = -12

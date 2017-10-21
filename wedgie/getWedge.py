@@ -220,6 +220,8 @@ class Batch(object):
             self.files = deepcopy(files_copy)
 
     def logic(self):
+        self.format_batch()
+
         if self.pol_type == 'stokes':
             for pol in self.pols:
                 wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
@@ -395,8 +397,11 @@ class Batch(object):
         plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
         plt.suptitle("JD: {JD1} - {JD2}; LST {start} to {end}".format(
-            JD1=file1.split('.')[1], JD2=file2.split('.')[1], start=times1[1][0][:-6], end=times2[1][-1][:-6]))
-        plt.title(file1.split('.')[3])
+            JD1=file1.split('/')[-1].split('.')[1],
+            JD2=file2.split('/')[-1].split('.')[1],
+            start=times1[1][0][:-6],
+            end=times2[1][-1][:-6]))
+        plt.title(file1.split('/')[-1].split('.')[3])
 
         plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
 
@@ -435,16 +440,12 @@ class Batch(object):
 
 
 zen = Batch(args)
+
 if args.Difference:
     zen.difference()
-    quit()
-
-if args.combine:
+elif args.combine:
     zen.combine()
-    quit()
-
-zen.format_batch()
-if args.step:
+elif args.step:
     zen.stepping()
 elif args.stair:
     zen.stairing()
