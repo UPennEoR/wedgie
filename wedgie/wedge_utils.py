@@ -284,12 +284,12 @@ class Wedge(object):
 
     # Types of Wedge creating methods:
     def timeavg(self):
-        for wslice in self.cwedgeslices:
-            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(wslice, axis=0)))))
+        """Take the log10 of the fftshift of the absolute value of the time averaged visibility data."""
+        self.wedgeslices = np.log10(np.fft.fftshift(np.abs(np.mean(self.cwedgeslices, axis=1)), axes=1))
 
     def blavg(self):
-        for wslice in self.cwedgeslices:
-            self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(wslice), axes=1)))
+        """Take the log10 of the fftshift of the absolute value of the visibility data."""
+        self.wedgeslices = np.log10(np.fft.fftshift(np.abs(self.cwedgeslices), axes=1))
 
     def flavors(self):
         """Create a pitchfork averaged over baseline orientation and in time"""
