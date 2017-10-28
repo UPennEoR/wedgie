@@ -83,6 +83,9 @@ class Wedge(object):
             ex_ants = [str(ant) for ant in self.ex_ants]
             ex_ants = "_".join(ex_ants)
             npz_name.insert(4, ex_ants)
+        else:
+            ex_ants = ["None"]
+            npz_name.insert(4, ex_ants)
 
         npz_name = '.'.join(npz_name)
 
