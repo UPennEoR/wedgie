@@ -10,6 +10,7 @@ Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 
 import numpy as np
 import matplotlib as mpl
+# mpl.use('Agg')
 import matplotlib.pyplot as plt
 import scipy.constants as sc
 
