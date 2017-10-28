@@ -12,6 +12,7 @@ import capo, aipy
 
 import numpy as np
 import matplotlib as mpl
+# mpl.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
