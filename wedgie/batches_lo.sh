@@ -1,5 +1,5 @@
 #!/bin/bash
-#$ -N HolyDaysHigh
+#$ -N HolyDaysLow
 #$ -l h_vmem=45G
 #$ -cwd
 #$ -m bea
