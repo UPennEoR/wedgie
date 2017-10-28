@@ -227,7 +227,7 @@ class Batch(object):
             for pol in self.pols:
                 wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
                 exec('wedge.form_stokes{}()'.format(pol))
-                wedge.format_flags()
+                wedge.apply_flags()
 
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')
@@ -258,7 +258,7 @@ class Batch(object):
             for pol in self.pols:
                 wedge = wu.Wedge(self.args, self.files, self.calfile, pol, self.ex_ants, self.freq_range, self.history)
                 wedge.load_file()
-                wedge.format_flags()
+                wedge.apply_flags()
 
                 if self.args.timeavg:
                     wedge.name_npz('timeavg')

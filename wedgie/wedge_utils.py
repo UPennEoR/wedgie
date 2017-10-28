@@ -277,11 +277,14 @@ class Wedge(object):
         self.info, self.data, self.flags = capo.miriad.read_files(self.files[self.pol], antstr='cross', polstr=self.pol)
 
     # Format flags for correct application:
-    def format_flags(self):
+    def apply_flags(self):
         """Turns flags from False/True --> 1/0."""
         for i in self.flags:
             for j in self.flags[i]:
                     self.flags[i][j] = np.logical_not(self.flags[i][j]).astype(int)
+
+        for pair in self.caldata[2]:
+            self.data[pair][self.pol] *= self.flags[pair][self.pol]
 
     # Types of Wedge creating methods:
     def timeavg(self):
