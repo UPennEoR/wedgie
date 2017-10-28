@@ -336,104 +336,117 @@ class Batch(object):
                 os.remove(npz)
 
     def difference(self):
-        if len(self.args.filenames) > 2:
-            raise Exception('Can only take the difference of two wedges. Provide only two files.')
+        self.pols = self.args.pol.split(',')
 
-        file1 = self.args.filenames[0]
-        data1 = np.load(file1)
-        cwedge1, times1 = data1['cwslices'], data1['times'][:, 1::2]
+        # This sets up the format of self.files to be {pol: [file1, file2, ...]}
+        for pol in self.pols:
+            pol_files = []
+            for file in self.args.filenames:
+                if '.{}.'.format(pol) in file.split('/')[-1]:
+                    pol_files.append(file)
 
-        file2 = self.args.filenames[1]
-        data2 = np.load(file2)
-        cwedge2, times2 = data2['cwslices'], data2['times'][:, 1::2]
+            self.files[pol] = pol_files
 
-        if np.all(data1['delays'] == data2['delays']) and np.all(data1['caldata'] == data2['caldata']):
-            delays = data1['delays']
-            caldata = data1['caldata']
-        else:
-            raise Exception('delays and caldata arrays are not the same.')
+        for pol in self.pols:
 
-        for i, time in enumerate(times1[0]):
-            if time >= times2[0, 0]:
-                start = i
-                break
+            if len(self.files[pol]) > 2:
+                raise Exception('Can only take the difference of two wedges. Provide only two files.')
 
-        for i, time in enumerate(times2[0]):
-            if time >= times1[0, -1]:
-                end = i
-                break
+            file1 = self.files[pol][0]
+            data1 = np.load(file1)
+            cwedge1, times1 = data1['cwslices'], data1['times'][:, 1::2]
 
-        times1 = times1[:, start:]
-        times2 = times2[:, :end]
+            file2 = self.files[pol][1]
+            data2 = np.load(file2)
+            cwedge2, times2 = data2['cwslices'], data2['times'][:, 1::2]
 
-        cwedge1 = np.mean(cwedge1[:, start:, :], axis=1)
-        cwedge2 = np.mean(cwedge2[:, :end, :], axis=1)
+            if np.all(data1['delays'] == data2['delays']) and np.all(data1['caldata'] == data2['caldata']):
+                delays = data1['delays']
+                caldata = data1['caldata']
+            else:
+                raise Exception('delays and caldata arrays are not the same.')
 
-        wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=0)
+            for i, time in enumerate(times1[0]):
+                if time >= times2[0, 0]:
+                    start = i
+                    break
 
-        # Plot difference data.
-        plotindeces = [int(round(i*10)) for i in caldata[3]]
-        plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
-        j = 0
-        for i in range(len(plotindeces)):
-            plotdata[j:plotindeces[i]] = wedgeslices[i]
-            j = plotindeces[i]
+            for i, time in enumerate(times2[0]):
+                if time >= times1[0, -1]:
+                    end = i
+                    break
 
-        plt.imshow(
-            plotdata,
-            aspect='auto',
-            interpolation='nearest',
-            extent=[delays[0], delays[-1], plotindeces[-1], 0],
-            vmin=0,
-            vmax=0.025)
+            times1 = times1[:, start:]
+            times2 = times2[:, :end]
 
-        plt.colorbar().set_label('Linear Difference')
-        plt.xlabel("Delay [ns]")
-        plt.xlim((-450, 450))
-        plt.ylabel("Baseline Length [m]")
-        plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
+            cwedge1 = np.mean(cwedge1[:, start:, :], axis=1)
+            cwedge2 = np.mean(cwedge2[:, :end, :], axis=1)
 
-        plt.suptitle("JD: {JD1} - {JD2}; LST {start} to {end}".format(
-            JD1=file1.split('/')[-1].split('.')[1],
-            JD2=file2.split('/')[-1].split('.')[1],
-            start=times1[1][0][:-6],
-            end=times2[1][-1][:-6]))
-        plt.title(file1.split('/')[-1].split('.')[3])
+            wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=1)
 
-        plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+            # Plot difference data.
+            plotindeces = [int(round(i*10)) for i in caldata[3]]
+            plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
+            j = 0
+            for i in range(len(plotindeces)):
+                plotdata[j:plotindeces[i]] = wedgeslices[i]
+                j = plotindeces[i]
 
-        horizons = []
-        for length in caldata[3]:
-            horizons.append(length / sc.c * 10**9)
-        j = 0
-        for i in range(len(horizons)):
-            x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
-            x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
-            plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
-            j = plotindeces[i]
+            plt.imshow(
+                plotdata,
+                aspect='auto',
+                interpolation='nearest',
+                extent=[delays[0], delays[-1], plotindeces[-1], 0],
+                vmin=0,
+                vmax=0.01)
 
-        file1 = file1.split('/')[-1].split('.')
-        file2 = file2.split('/')[-1].split('.')
+            plt.colorbar().set_label('Linear Difference')
+            plt.xlabel("Delay [ns]")
+            plt.xlim((-450, 450))
+            plt.ylabel("Baseline Length [m]")
+            plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
-        time1 = ['_'.join(file1[1:3])]
-        time2 = ['_'.join(file2[1:3])]
-        time = ['-'.join(time1 + time2)]
+            plt.suptitle("JD: {JD1} - {JD2}; LST {start} to {end}".format(
+                JD1=file1.split('/')[-1].split('.')[1],
+                JD2=file2.split('/')[-1].split('.')[1],
+                start=times1[1][0][:-6],
+                end=times2[1][-1][:-6]))
+            plt.title(file1.split('/')[-1].split('.')[3])
 
-        end1 = file1[3:-2]
-        end2 = file2[3:-2]
+            plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
 
-        zen1 = [file1[0]]
-        zen2 = [file2[0]]
+            horizons = []
+            for length in caldata[3]:
+                horizons.append(length / sc.c * 10**9)
+            j = 0
+            for i in range(len(horizons)):
+                x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
+                x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+                plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+                j = plotindeces[i]
 
-        if end1 != end2 or zen1 != zen2:
-            raise Exception('You did not supply the same type of file!')
+            file1 = file1.split('/')[-1].split('.')
+            file2 = file2.split('/')[-1].split('.')
 
-        file = '.'.join(zen1 + time + end1)
+            time1 = ['_'.join(file1[1:3])]
+            time2 = ['_'.join(file2[1:3])]
+            time = ['-'.join(time1 + time2)]
 
-        plt.savefig(self.args.path + file + '.diff.png')
-        plt.show()
-        plt.close()
-        plt.clf()
+            end1 = file1[3:-2]
+            end2 = file2[3:-2]
+
+            zen1 = [file1[0]]
+            zen2 = [file2[0]]
+
+            if end1 != end2 or zen1 != zen2:
+                raise Exception('You did not supply the same type of file!')
+
+            file = '.'.join(zen1 + time + end1)
+
+            plt.savefig(self.args.path + file + '.diff.png')
+            # plt.show()
+            # plt.close()
+            plt.clf()
 
 
 zen = Batch(args)
