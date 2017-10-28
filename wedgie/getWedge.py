@@ -290,7 +290,6 @@ class Batch(object):
     def combine(self):
         self.format_pols()
         self.pols = self.args.pol.split(',')
-        os.mkdir("./old_npzs")
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
         for pol in self.pols:
@@ -321,10 +320,28 @@ class Batch(object):
             wslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(cwslices, axis=1)), axes=1))
 
             # Naming and Saving
-            f1, f2 = self.files[pol][0].split('/')[-1], self.files[pol][-1].split('/')[-1]
-            start, end = f1.split('.')[2].split('_')[0], f2.split('.')[2].split('_')[1]
-            time_rng = ['_'.join([start, end])]
-            npz_name = '.'.join(f1.split('.')[:2] + time_rng + f2.split('.')[3:])
+            file1 = self.files[pol][0].split('/')[-1].split('.')
+            file2 = self.files[pol][-1].split('/')[-1].split('.')
+
+            day1 = [file1[1]]
+            day2 = [file2[1]]
+            day = ['__'.join(day1 + day2)]
+
+            time1 = [file1[2]]
+            time2 = [file2[2]]
+            time = ['__'.join(time1 + time2)]
+
+            end1 = file1[3:-2]
+            end2 = file2[3:-2]
+
+            zen1 = [file1[0]]
+            zen2 = [file2[0]]
+
+            if end1 != end2 or zen1 != zen2:
+                raise Exception('You did not supply the same type of file!')
+
+            npz_name = '.'.join(zen1 + day + time + end1)
+
             np.savez(
                 npz_name,
                 pol=pol,
@@ -338,8 +355,8 @@ class Batch(object):
                 # hist=history
                 )
 
-            for npz in self.files[pol]:    
-                os.rename(npz, "./old_npzs/{npz}".format(npz=npz))
+            for npz in self.files[pol]:
+                os.remove(npz)
                 
 
     def difference(self):
