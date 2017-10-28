@@ -285,7 +285,7 @@ class Wedge(object):
     # Types of Wedge creating methods:
     def timeavg(self):
         """Take the log10 of the fftshift of the absolute value of the time averaged visibility data."""
-        self.wedgeslices = np.log10(np.fft.fftshift(np.abs(np.mean(self.cwedgeslices, axis=1)), axes=1))
+        self.wedgeslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(self.cwedgeslices, axis=1)), axes=1))
 
     def blavg(self):
         """Take the log10 of the fftshift of the absolute value of the visibility data."""
@@ -316,7 +316,7 @@ class Wedge(object):
                     self.phasing(ntimes, antpair)
                     self.vis_sq_slope += self.vis_sq_antpair
                 self.vis_sq_slope /= len(self.caldata[1][baselength])
-                self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.mean(self.vis_sq_slope, axis=0)))))
+                self.wedgeslices.append(np.log10(np.fft.fftshift(np.abs(np.nanmean(self.vis_sq_slope, axis=0)))))
                 print('Wedgeslice for baseline {} and slope {} complete.'.format(baselength, slope))
 
     def bltype(self):
