@@ -288,7 +288,9 @@ class Batch(object):
             raise Exception("Polarization type not understood, be sure you have correctly specified the polarizations you want.")
 
     def combine(self):
+        self.format_pols()
         self.pols = self.args.pol.split(',')
+        os.mkdir("./old_npzs")
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
         for pol in self.pols:
@@ -301,40 +303,44 @@ class Batch(object):
 
         for pol in self.pols:
 
-            # Load data from the first file to start out with
-            # Grab the delays and caldata which will be the same for every file
-            # Grab the times which will eventually be combined with every other file's times
             file_0 = self.files[pol][0]
-            data_0 = np.load(file_0)
-            caldata = data_0['caldata']
-            delays = data_0['delays']
-            cwedgeslices = data_0['cwslices']
-            times = data_0['times']
+            with np.load(file_0)  as data_0:
+                pol = data_0['pol'].tolist()
+                caldata = data_0['caldata'].tolist()
+                cwslices = data_0['cwslices']
+                delays = data_0['delays']
+                times = data_0['times']
 
             # Cycle through the rest of the files in the polarization
-            # Add to rolling sum of cwedgeslice data
-            # Combine times
-            for i, npz in enumerate(self.files[pol][1:]):
-                data = np.load(npz)
-                cwedgeslices = np.concatenate((cwedgeslices, data['cwslices']), axis=1)
-                times = np.concatenate((times, data['times']), axis=1)
-
-            # Average together cwedgeslices
-            # cwedgeslices /= len(self.files[pol])
+            for npz in self.files[pol][1:]:
+                with np.load(npz) as data:
+                    cwslices = np.concatenate((cwslices, data['cwslices']), axis=1)
+                    times = np.concatenate((times, data['times']), axis=1)
 
             # Take the log of the fftshift of the abs of the time average of the cwedgeslices (to make wedgeslices)
-            wedgeslices = np.log10(np.fft.fftshift(np.abs(np.mean(cwedgeslices, axis=1)), axes=1))
+            wslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(cwslices, axis=1)), axes=1))
 
             # Naming and Saving
-            start = file_0.split('/')[-1].split('.')[2].split('_')[0]
-            end = file.split('/')[-1].split('.')[2].split('_')[1]
+            f1, f2 = self.files[pol][0].split('/')[-1], self.files[pol][-1].split('/')[-1]
+            start, end = f1.split('.')[2].split('_')[0], f2.split('.')[2].split('_')[1]
             time_rng = ['_'.join([start, end])]
-            npz_name = '.'.join(file_0.split('/')[-1].split('.')[:2] + time_rng + file.split('/')[-1].split('.')[3:])
-            np.savez(npz_name, cwslices=cwedgeslices, wslices=wedgeslices, delays=delays, caldata=caldata, pol=pol, times=times)
+            npz_name = '.'.join(f1.split('.')[:2] + time_rng + f2.split('.')[3:])
+            np.savez(
+                npz_name,
+                pol=pol,
+                caldata=caldata,
+                wslices=wslices,
+                cwslices=cwslices,
+                # aslices=antpairslices,
+                delays=delays,
+                times=times,
+                # bl_length=bl_length,
+                # hist=history
+                )
 
-            # Remove npz files that have been combined
-            for npz in self.files[pol]:
-                os.remove(npz)
+            for npz in self.files[pol]:    
+                os.rename(npz, "./old_npzs/{npz}".format(npz=npz))
+                
 
     def difference(self):
         self.pols = self.args.pol.split(',')
