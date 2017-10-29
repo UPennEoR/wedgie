@@ -361,6 +361,7 @@ class Batch(object):
 
     def difference(self):
         self.pols = self.args.pol.split(',')
+        os.mkdir(self.args.path + "diffs")
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
         for pol in self.pols:
@@ -403,8 +404,8 @@ class Batch(object):
             times1 = times1[:, start:]
             times2 = times2[:, :end]
 
-            cwedge1 = np.mean(cwedge1[:, start:, :], axis=1)
-            cwedge2 = np.mean(cwedge2[:, :end, :], axis=1)
+            cwedge1 = np.nanmean(cwedge1[:, start:, :], axis=1)
+            cwedge2 = np.nanmean(cwedge2[:, :end, :], axis=1)
 
             wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=1)
 
@@ -462,15 +463,18 @@ class Batch(object):
             zen1 = [file1[0]]
             zen2 = [file2[0]]
 
+            # embed()
+
             if end1 != end2 or zen1 != zen2:
                 raise Exception('You did not supply the same type of file!')
 
             file = '.'.join(zen1 + time + end1)
 
-            plt.savefig(self.args.path + file + '.diff.png')
+            plt.savefig(self.args.path + "diffs/" + file + '.diff.png')
             # plt.show()
             # plt.close()
             plt.clf()
+
 
 
 zen = Batch(args)
