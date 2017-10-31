@@ -289,7 +289,6 @@ class Batch(object):
 
     def combine(self):
         self.format_pols()
-        self.pols = self.args.pol.split(',')
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
         for pol in self.pols:
@@ -358,9 +357,8 @@ class Batch(object):
             for npz in self.files[pol]:
                 os.remove(npz)
                 
-
     def difference(self):
-        self.pols = self.args.pol.split(',')
+        self.format_pols()
         os.mkdir(self.args.path + "diffs")
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
@@ -474,7 +472,6 @@ class Batch(object):
             # plt.show()
             # plt.close()
             plt.clf()
-
 
 
 zen = Batch(args)
