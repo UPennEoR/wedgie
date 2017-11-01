@@ -218,7 +218,7 @@ class Wedge(object):
         # get metadata
         info = {}
         # convert from Hz -> GHz
-        info['freqs'] = uvxx.freq_array / 1e9
+        info['freqs'] = uvxx.freq_array[0, :] / 1e9
         info['times'] = np.unique(uvxx.time_array)
 
         # get data and flags
@@ -260,7 +260,7 @@ class Wedge(object):
         # get metadata
         info = {}
         # convert from Hz -> GHz
-        info['freqs'] = uvxx.freq_array / 1e9
+        info['freqs'] = uvxx.freq_array[0, :] / 1e9
         info['times'] = np.unique(uvxx.time_array)
 
         # get data and flags
@@ -301,7 +301,7 @@ class Wedge(object):
         # get metadata
         info = {}
         # convert from Hz -> GHz
-        info['freqs'] = uvxy.freq_array / 1e9
+        info['freqs'] = uvxy.freq_array[0, :] / 1e9
         info['times'] = np.unique(uvxy.time_array)
 
         # get data and flags
@@ -342,7 +342,7 @@ class Wedge(object):
         # get metadata
         info = {}
         # convert from Hz -> GHz
-        info['freqs'] = uvxy.freq_array / 1e9
+        info['freqs'] = uvxy.freq_array[0, :] / 1e9
         info['times'] = np.unique(uvxy.time_array)
 
         # get data and flags
@@ -382,7 +382,7 @@ class Wedge(object):
         # get metadata
         info = {}
         # convert from Hz -> GHz
-        info['freqs'] = uv.freq_array / 1e9
+        info['freqs'] = uv.freq_array[0, :] / 1e9
         info['times'] = np.unique(uv.time_array)
 
         # get data and flags
