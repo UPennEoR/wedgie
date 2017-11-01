@@ -33,7 +33,7 @@ parser.add_argument('-F',
 parser.add_argument('-C',
                     '--calfile',
                     help='Input the calfile to be used for analysis.',
-                    default='hsa7458_v001')
+                    default=None)
 parser.add_argument('-P',
                     '--pol',
                     help='Input a comma-delimited list of polatizations to plot.',
@@ -175,7 +175,8 @@ class Batch(object):
 
     def format_calfile(self):
         """Remove '.py' from the end of the calfile"""
-        self.calfile = self.args.calfile.split('.py')[0]
+        if self.calfile is not None:
+            self.calfile = self.args.calfile.split('.py')[0]
 
     def create_history(self):
         self.history['filenames'] = self.files
