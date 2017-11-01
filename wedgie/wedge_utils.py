@@ -25,6 +25,8 @@ import cosmo_utils as cu
 
 import decimal
 
+import hera_cal
+
 # For Interactive Development
 from IPython import embed
 
@@ -64,7 +66,8 @@ class Wedge(object):
         self.delays = list()
 
         decimal.getcontext().prec = 6
-        self.calculate_caldata()
+        if self.calfile is not None:
+            self.calculate_caldata()
 
     # Methods common throughout Wedge Creation
     def name_npz(self, tag):
@@ -95,7 +98,7 @@ class Wedge(object):
 
         print(self.npz_name)
 
-    def calculate_caldata(self):
+    def calculate_caldata(self, uvd=None):
         """
         Returns a dictionary of baseline lengths and the corresponding pairs. The data is based
         on a calfile. ex_ants is a list of integers that specify antennae to be exlcuded from
@@ -103,12 +106,17 @@ class Wedge(object):
 
         Requires cal file to be in PYTHONPATH.
         """
-        try:
-            print('Reading calfile: {cfile}'.format(cfile=self.calfile))
-            exec("import {cfile} as cal".format(cfile=self.calfile))
-            antennae = cal.prms['antpos_ideal']
-        except ImportError:
-            raise Exception("Unable to import {cfile}.".format(cfile=self.calfile))
+        if self.calfile is not None:
+            try:
+                print('Reading calfile: {cfile}'.format(cfile=self.calfile))
+                exec("import {cfile} as cal".format(cfile=self.calfile))
+                antennae = cal.prms['antpos_ideal']
+            except ImportError:
+                raise Exception("Unable to import {cfile}.".format(cfile=self.calfile))
+        else:
+            # get AntennaArray object from data file itself
+            aa = hera_cal.utils.get_aa_from_uv(uvd)
+            antennae = aa.prms['antpos_ideal']
 
         # Remove all placeholder antennae from consideration
         # Remove all antennae from ex_ants from consideration
@@ -215,6 +223,10 @@ class Wedge(object):
         uvyy = UVData()
         uvyy.read_miriad(self.files['yy'])
 
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxx)
+
         # get metadata
         info = {}
         # convert from Hz -> GHz
@@ -257,6 +269,10 @@ class Wedge(object):
         uvyy = UVData()
         uvyy.read_miriad(self.files['yy'])
 
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxx)
+
         # get metadata
         info = {}
         # convert from Hz -> GHz
@@ -297,6 +313,10 @@ class Wedge(object):
         uvxy.read_miriad(self.files['xy'])
         uvyx = UVData()
         uvyx.read_miriad(self.files['yx'])
+
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxy)
 
         # get metadata
         info = {}
@@ -339,6 +359,10 @@ class Wedge(object):
         uvyx = UVData()
         uvyx.read_miriad(self.files['yx'])
 
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxy)
+
         # get metadata
         info = {}
         # convert from Hz -> GHz
@@ -378,6 +402,10 @@ class Wedge(object):
         """Loads data with given polarization, self.pol, from files, self.files"""
         uv = UVData()
         uv.read_miriad(self.files[self.pol])
+
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uv)
 
         # get metadata
         info = {}
