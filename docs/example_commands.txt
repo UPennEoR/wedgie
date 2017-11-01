@@ -1,0 +1,36 @@
+To create a wedge you need to create an npz file, and then run another command to plot the data in the file.
+
+To create an npz file:
+
+    Run 'python getWedge.py' from the directory you want the npz saved in.
+    
+    Make sure to include the following options, or know what the default settings are:
+        -F [FILENAMES [FILENAMES ...], filenames to retrieve data from
+            Provide filenames for all times you want calculated, can use wildcards to select multiple files.
+            If calculating multiple polarizations, you need only provide files for one of the polarizations; the arg parser will sort out the rest assuming all files are in the same source directory.
+        -C CALFILE, calfile, default is hsa7458_v001.
+            This option is not required if this calfile is in your working directory.
+        -P POL, comma-delimited list of polarizations you want calculated, default is 'I,Q,U,V'.
+        -X EX_ANTS, comma-delimited list of antenna to exclude from analysis, default is null. example: "81,72"
+        -R FREQ_RANGE, frequency channels to analyze, default is all channels. example: "550_650"
+        {-t, -b, -f, -l=X} to toggle which type of wedge you want to create: {time-averaged, average only over baseline, showing each type/orientation of baseline, only one baseline type}.
+            'Standard' wedges use the -t, --timeavg option.
+   
+   Optional arguments:
+        -V PATH, the path to where you want to save the npz file, default is the working directory.
+        -S STEP, if you want to span the time range by in steps of STEP number of files.
+To plot the data from the npz file:
+    Run 'python plotWedge.py' from the directory you want the png saved in.
+    Make sure to include the following options:
+        -F [FILENAMES [FILENAMES ...], npz filenames to plot.
+            Be sure to include npz files for all polarizations if plotting multiple pols on the same plot.
+        {-t, -b, -f, -l} corresponding to which of the options you had used in making the supplied npz file.
+        {-s, -m, -o=[ONE_D]} for what type of plot you want to make:
+            -s, plots a single plot for each supplied npz file.
+            -m, plots 4 plots at once from the supplied npz files; use this to show IQUV on the same image.
+            -o [ONE_D], plots wedges on a one dimensional plot.
+                Supplying no list plots all baselines on the same plot.  Supplying a comma delimited list of baseline lengths "1,2,3" etc. plots only those baselines.
+
+For instance, to create an pitchforks in IQUV on the same plot for all times .4 for a day, one might run the following commands:
+    python getWedge.py -F path/zen.2457747.4*uvcOR -X 81,72 -t
+    python plotWedge.py -F *npz -tm
