@@ -113,7 +113,7 @@ class Batch(object):
     def __init__(self, args):
         self.args = args
         self.history = vars(args)
-        self.calfile = str()
+        self.calfile = None
         self.pols = list()
         self.pol_type = str()
         self.file_pols = list()
