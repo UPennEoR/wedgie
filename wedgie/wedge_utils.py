@@ -6,9 +6,11 @@ Paul Chichura <pchich_at_sas.upenn.edu>
 Austin Fox Fortino <fortino_at_sas.upenn.edu>
 Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
+Paul La Plante <plaplant_at_sas.upenn.edu>
 """
 
-import capo, aipy
+import aipy
+from pyuvdata import UVData
 
 import numpy as np
 import matplotlib as mpl
@@ -208,76 +210,205 @@ class Wedge(object):
     # Forming Stokes Parameters:
     def form_stokesI(self):
         """Calculate I (VI = Vxx + Vyy)"""
-        txx, dxx, fxx = capo.miriad.read_files(self.files['xx'], antstr='cross', polstr='xx')
-        tyy, dyy, fyy = capo.miriad.read_files(self.files['yy'], antstr='cross', polstr='yy')
+        uvxx = UVData()
+        uvxx.read_miriad(self.files['xx'])
+        uvyy = UVData()
+        uvyy.read_miriad(self.files['yy'])
 
-        tI = txx
+        # get metadata
+        info = {}
+        # convert from Hz -> GHz
+        info['freqs'] = uvxx.freq_array[0, :] / 1e9
+        info['times'] = np.unique(uvxx.time_array)
+
+        # get data and flags
         dI = {}
         fI = {}
-        for key in dxx.keys():
-            dI[key] = {'I': dxx[key]['xx'] + dyy[key]['yy']}
-            fI[key] = {'I': fxx[key]['xx'] + fyy[key]['yy']}
+        for key, dxx in uvxx.antpairpol_iter():
+            # ignore auto correlations
+            if key[0] == key[1]:
+                continue
+            ind1, ind2, ipol = uvxx._key2inds(key)
+            for ind in [ind1, ind2]:
+                if len(ind) == 0:
+                    continue
+                # assumes that xx and yy files only have a single polarization in them
+                dyy = uvyy.data_array[ind, 0, :, 0]
+                fxx = uvxx.flag_array[ind, 0, :, 0]
+                fyy = uvyy.flag_array[ind, 0, :, 0]
 
-        del txx, dxx, fxx
-        del tyy, dyy, fyy
+                antkey = key[:2]
+                dI[antkey] = {'I': dxx + dyy}
+                fI[antkey] = {'I': fxx + fyy}
 
-        self.info, self.data, self.flags = tI, dI, fI
+        # clean up
+        del uvxx, uvyy
+
+        # assign to object variables
+        self.info = info
+        self.data = dI
+        self.flags = fI
+
 
     def form_stokesQ(self):
         """Calculate Q (VQ = Vxx - Vyy)"""
-        txx, dxx, fxx = capo.miriad.read_files(self.files['xx'], antstr='cross', polstr='xx')
-        tyy, dyy, fyy = capo.miriad.read_files(self.files['yy'], antstr='cross', polstr='yy')
+        uvxx = UVData()
+        uvxx.read_miriad(self.files['xx'])
+        uvyy = UVData()
+        uvyy.read_miriad(self.files['yy'])
 
-        tQ = tyy
+        # get metadata
+        info = {}
+        # convert from Hz -> GHz
+        info['freqs'] = uvxx.freq_array[0, :] / 1e9
+        info['times'] = np.unique(uvxx.time_array)
+
+        # get data and flags
         dQ = {}
         fQ = {}
-        for key in dxx.keys():
-            dQ[key] = {'Q': dxx[key]['xx'] - dyy[key]['yy']}
-            fQ[key] = {'Q': fxx[key]['xx'] + fyy[key]['yy']}
+        for key, dxx in uvxx.antpairpol_iter():
+            # ignore auto correlations
+            if key[0] == key[1]:
+                continue
+            ind1, ind2, ipol = uvxx._key2inds(key)
+            for ind in [ind1, ind2]:
+                if len(ind) == 0:
+                    continue
+                # assumes that xx and yy files only have a single polarization in them
+                dyy = uvyy.data_array[ind, 0, :, 0]
+                fxx = uvxx.flag_array[ind, 0, :, 0]
+                fyy = uvyy.flag_array[ind, 0, :, 0]
 
-        del txx, dxx, fxx
-        del tyy, dyy, fyy
+                antkey = key[:2]
+                dQ[antkey] = {'Q': dxx - dyy}
+                fQ[antkey] = {'Q': fxx + fyy}
 
-        self.info, self.data, self.flags = tQ, dQ, fQ
+        # clean up
+        del uvxx, uvyy
+
+        # assign to object variables
+        self.info = info
+        self.data = dQ
+        self.flags = fQ
 
     def form_stokesU(self):
         """Calculate U (VU = Vxy + Vyx)"""
-        tyx, dyx, fyx = capo.miriad.read_files(self.files['yx'], antstr='cross', polstr='yx')
-        txy, dxy, fxy = capo.miriad.read_files(self.files['xy'], antstr='cross', polstr='xy')
+        uvxy = UVData()
+        uvxy.read_miriad(self.files['xy'])
+        uvyx = UVData()
+        uvyx.read_miriad(self.files['yx'])
 
-        tU = tyx
+        # get metadata
+        info = {}
+        # convert from Hz -> GHz
+        info['freqs'] = uvxy.freq_array[0, :] / 1e9
+        info['times'] = np.unique(uvxy.time_array)
+
+        # get data and flags
         dU = {}
         fU = {}
-        for key in dxy.keys():
-            dU[key] = {'U': dxy[key]['xy'] + dyx[key]['yx']}
-            fU[key] = {'U': fxy[key]['xy'] + fyx[key]['yx']}
+        for key, dxy in uvxy.antpairpol_iter():
+            # ignore auto correlations
+            if key[0] == key[1]:
+                continue
+            ind1, ind2, ipol = uvxy._key2inds(key)
+            for ind in [ind1, ind2]:
+                if len(ind) == 0:
+                    continue
+                # assumes that xy and yx files only have a single polarization in them
+                dyx = uvyx.data_array[ind, 0, :, 0]
+                fxy = uvxy.flag_array[ind, 0, :, 0]
+                fyx = uvyx.flag_array[ind, 0, :, 0]
 
-        del tyx, dyx, fyx
-        del txy, dxy, fxy
+                antkey = key[:2]
+                dU[antkey] = {'U': dxy + dyx}
+                fU[antkey] = {'U': fxy + fyx}
 
-        self.info, self.data, self.flags = tU, dU, fU
+        # clean up
+        del uvxy, uvyx
+
+        # assign to object variables
+        self.info = info
+        self.data = dU
+        self.flags = fU
 
     def form_stokesV(self):
         """Calculate V (VV = -i*Vxy + i*Vyx)"""
-        tyx, dyx, fyx = capo.miriad.read_files(self.files['yx'], antstr='cross', polstr='yx')
-        txy, dxy, fxy = capo.miriad.read_files(self.files['xy'], antstr='cross', polstr='xy')
+        uvxy = UVData()
+        uvxy.read_miriad(self.files['xy'])
+        uvyx = UVData()
+        uvyx.read_miriad(self.files['yx'])
 
-        tV = txy
+        # get metadata
+        info = {}
+        # convert from Hz -> GHz
+        info['freqs'] = uvxy.freq_array[0, :] / 1e9
+        info['times'] = np.unique(uvxy.time_array)
+
+        # get data and flags
         dV = {}
         fV = {}
-        for key in dxy.keys():
-            dV[key] = {'V': -1j*dxy[key]['xy'] + 1j*dyx[key]['yx']}
-            fV[key] = {'V': fxy[key]['xy'] + fyx[key]['yx']}
+        for key, dxy in uvxy.antpairpol_iter():
+            # ignore auto correlations
+            if key[0] == key[1]:
+                continue
+            ind1, ind2, ipol = uvxy._key2inds(key)
+            for ind in [ind1, ind2]:
+                if len(ind) == 0:
+                    continue
+                # assumes that xy and yx files only have a single polarization in them
+                dyx = uvyx.data_array[ind, 0, :, 0]
+                fxy = uvxy.flag_array[ind, 0, :, 0]
+                fyx = uvyx.flag_array[ind, 0, :, 0]
 
-        del tyx, dyx, fyx
-        del txy, dxy, fxy
+                antkey = key[:2]
+                dV[antkey] = {'V': -1j * dxy + 1j * dyx}
+                fV[antkey] = {'V': fxy + fyx}
 
-        self.info, self.data, self.flags = tV, dV, fV
+        # clean up
+        del uvxy, uvyx
+
+        # assign to object variables
+        self.info = info
+        self.data = dV
+        self.flags = fV
 
     # Load data of one polarization:
     def load_file(self):
         """Loads data with given polarization, self.pol, from files, self.files"""
-        self.info, self.data, self.flags = capo.miriad.read_files(self.files[self.pol], antstr='cross', polstr=self.pol)
+        uv = UVData()
+        uv.read_miriad(self.files[self.pol])
+
+        # get metadata
+        info = {}
+        # convert from Hz -> GHz
+        info['freqs'] = uv.freq_array[0, :] / 1e9
+        info['times'] = np.unique(uv.time_array)
+
+        # get data and flags
+        d = {}
+        f = {}
+        for key, data in uv.antpairpol_iter():
+            # ignore auto correlations
+            if key[0] == key[1]:
+                continue
+            ind1, ind2, ipol = uv._key2inds(key)
+            for ind in [ind1, ind2]:
+                if len(ind) == 0:
+                    continue
+                flags = uv.flag_array[ind, 0, :, ipol]
+                antkey = key[:2]
+                polkey = key[2].lower()
+                d[antkey] = {polkey: data}
+                f[antkey] = {polkey: flags}
+
+        # clean up
+        del uv
+
+        # assign to object variables
+        self.info = info
+        self.data = d
+        self.flags = f
 
     # Format flags for correct application:
     def apply_flags(self):
