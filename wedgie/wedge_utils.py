@@ -11,6 +11,7 @@ Paul La Plante <plaplant_at_sas.upenn.edu>
 
 import aipy
 from pyuvdata import UVData
+import pyuvdata.utils as uvutils
 
 import numpy as np
 import matplotlib as mpl
@@ -114,9 +115,14 @@ class Wedge(object):
             except ImportError:
                 raise Exception("Unable to import {cfile}.".format(cfile=self.calfile))
         else:
-            # get AntennaArray object from data file itself
-            aa = hera_cal.utils.get_aa_from_uv(uvd)
-            antennae = aa.prms['antpos_ideal']
+            # build antenna positions from data file itself
+            print('Generating calibration information from data file')
+            antennae = {}
+            lat, lon, alt = uvd.telescope_location_lat_lon_alt
+            for i, antnum in enumerate(uvd.antenna_numbers):
+                pos = uvd.antenna_positions[i, :] + uvd.telescope_location
+                xyz = uvutils.ENU_from_ECEF(pos, latitude=lat, longitude=lon, altitude=alt)
+                antennae[antnum] = {'top_x': xyz[0], 'top_y': xyz[1], 'top_z': xyz[2]}
 
         # Remove all placeholder antennae from consideration
         # Remove all antennae from ex_ants from consideration
@@ -467,8 +473,15 @@ class Wedge(object):
         ntimes = len(self.info['times'])
         nchan = len(self.info['freqs'])
 
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        if self.calfile is not None:
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        else:
+            uv = UVData()
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            # convert from Hz -> GHz
+            freqs = uv.freq_array[0, :] / 1e9
+            self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
         del uv
         self.aa.set_active_pol(self.pol)
 
@@ -495,8 +508,15 @@ class Wedge(object):
         ntimes = len(self.info['times'])
         nchan = len(self.info['freqs'])
 
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        if self.calfile is not None:
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        else:
+            uv = UVData()
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            # convert from Hz -> GHz
+            freqs = uv.freq_array[0, :] / 1e9
+            self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
         del uv
         self.aa.set_active_pol(self.pol)
 
@@ -522,8 +542,15 @@ class Wedge(object):
         ntimes = len(self.info['times'])
         nchan = len(self.info['freqs'])
 
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        if self.calfile is not None:
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        else:
+            uv = UVData()
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            # convert from Hz -> GHz
+            freqs = uv.freq_array[0, :] / 1e9
+            self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
         del uv
         self.aa.set_active_pol(self.pol)
 
