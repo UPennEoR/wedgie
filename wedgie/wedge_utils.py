@@ -263,9 +263,9 @@ class Wedge(object):
         del uvxx, uvyy
 
         # assign to object variables
-        self.info = info
-        self.data = dI
-        self.flags = fI
+        self.info = info.copy()
+        self.data = dI.copy()
+        self.flags = fI.copy()
 
 
     def form_stokesQ(self):
@@ -309,9 +309,9 @@ class Wedge(object):
         del uvxx, uvyy
 
         # assign to object variables
-        self.info = info
-        self.data = dQ
-        self.flags = fQ
+        self.info = info.copy()
+        self.data = dQ.copy()
+        self.flags = fQ.copy()
 
     def form_stokesU(self):
         """Calculate U (VU = Vxy + Vyx)"""
@@ -354,9 +354,9 @@ class Wedge(object):
         del uvxy, uvyx
 
         # assign to object variables
-        self.info = info
-        self.data = dU
-        self.flags = fU
+        self.info = info.copy()
+        self.data = dU.copy()
+        self.flags = fU.copy()
 
     def form_stokesV(self):
         """Calculate V (VV = -i*Vxy + i*Vyx)"""
@@ -399,9 +399,9 @@ class Wedge(object):
         del uvxy, uvyx
 
         # assign to object variables
-        self.info = info
-        self.data = dV
-        self.flags = fV
+        self.info = info.copy()
+        self.data = dV.copy()
+        self.flags = fV.copy()
 
     # Load data of one polarization:
     def load_file(self):
@@ -440,19 +440,21 @@ class Wedge(object):
         del uv
 
         # assign to object variables
-        self.info = info
-        self.data = d
-        self.flags = f
+        self.info = info.copy()
+        self.data = d.copy()
+        self.flags = f.copy()
 
     # Format flags for correct application:
     def apply_flags(self):
+        # Apply them
+        for pair in self.caldata[2]:
+        #    self.data[pair][self.pol] *= self.flags[pair][self.pol]
+            self.data[pair][self.pol] = np.where(self.flags[pair][self.pol],0.+0.*1j,self.data[pair][self.pol])
+
         """Turns flags from False/True --> 1/0."""
         for i in self.flags:
             for j in self.flags[i]:
                     self.flags[i][j] = np.logical_not(self.flags[i][j]).astype(int)
-
-        for pair in self.caldata[2]:
-            self.data[pair][self.pol] *= self.flags[pair][self.pol]
 
     # Types of Wedge creating methods:
     def timeavg(self):
