@@ -446,7 +446,7 @@ class Wedge(object):
 
     # Format flags for correct application:
     def apply_flags(self):
-        # Apply them
+        # Apply flags to data by zeroing it.  Need to make the replaced value *complex*
         for pair in self.caldata[2]:
         #    self.data[pair][self.pol] *= self.flags[pair][self.pol]
             self.data[pair][self.pol] = np.where(self.flags[pair][self.pol],0.+0.*1j,self.data[pair][self.pol])
