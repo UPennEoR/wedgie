@@ -447,7 +447,7 @@ class Batch(object):
             for i in range(len(horizons)):
                 x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
                 x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
-                plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+                plt.plot(x1, y1, x2, y2, color='black', linestyle='--', linewidth=.75)
                 j = plotindeces[i]
 
             file1 = file1.split('/')[-1].split('.')
