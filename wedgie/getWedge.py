@@ -113,7 +113,7 @@ class Batch(object):
     def __init__(self, args):
         self.args = args
         self.history = vars(args)
-        self.calfile = None
+        self.calfile = str()
         self.pols = list()
         self.pol_type = str()
         self.file_pols = list()
@@ -175,6 +175,7 @@ class Batch(object):
 
     def format_calfile(self):
         """Remove '.py' from the end of the calfile"""
+        self.calfile = self.args.calfile
         if self.calfile is not None:
             self.calfile = self.args.calfile.split('.py')[0]
 
@@ -464,8 +465,8 @@ class Batch(object):
 
             # embed()
 
-            if end1 != end2 or zen1 != zen2:
-                raise Exception('You did not supply the same type of file!')
+            # if end1 != end2 or zen1 != zen2:
+                # raise Exception('You did not supply the same type of file!')
 
             file = '.'.join(zen1 + time + end1)
 
