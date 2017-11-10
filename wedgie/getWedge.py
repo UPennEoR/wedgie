@@ -405,7 +405,8 @@ class Batch(object):
             cwedge1 = np.nanmean(cwedge1[:, start:, :], axis=1)
             cwedge2 = np.nanmean(cwedge2[:, :end, :], axis=1)
 
-            wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=1)
+            # wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=1)
+            wedgeslices = np.fft.fftshift((cwedge1 - cwedge2).real, axes=1)
 
             # Plot difference data.
             plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -420,8 +421,9 @@ class Batch(object):
                 aspect='auto',
                 interpolation='nearest',
                 extent=[delays[0], delays[-1], plotindeces[-1], 0],
-                vmin=0,
-                vmax=0.01)
+                vmin=-0.01,
+                vmax=0.01,
+                cmap=plt.get_cmap('bwr'))
 
             plt.colorbar().set_label('Linear Difference')
             plt.xlabel("Delay [ns]")
