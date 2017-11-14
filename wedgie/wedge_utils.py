@@ -573,7 +573,7 @@ def plot_timeavg(npz_name, path):
         vmin = -12
     else:
         vmax = -1
-        vmin = -5
+        vmin = -8
 
     # format data so y axis properly scaled
     plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -648,7 +648,7 @@ def plot_timeavg_multi(npz_names, path):
             vmin = -12
         else:
             vmax = -1
-            vmin = -5
+            vmin = -8
 
         # format data so y axis properly scaled
         plotindeces = [int(round(i*10)) for i in caldata[3]]
