@@ -21,8 +21,8 @@ import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 import scipy.constants as sc
 
-import gen_utils as gu
-import cosmo_utils as cu
+import wedgie.gen_utils as gu
+import wedgie.cosmo_utils as cu
 
 import decimal
 

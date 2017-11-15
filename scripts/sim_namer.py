@@ -9,7 +9,9 @@ The directory that these files are located in must be hardcoded.
 Author:
 Austin Fox Fortino <fortino_at_sas.upenn.edu>
 """
-import glob, os, pprint
+import glob
+import os
+import pprint
 
 directory = glob.glob("path/to/files/*")
 pprint.pprint(directory)
