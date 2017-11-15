@@ -64,7 +64,11 @@ class Graph(object):
                 elif self.args.flavors:
                     wu.plot_flavors_multi(files, self.path)
                 elif self.args.one_D:
-                    wu.plot_multi_1D
+                    if self.args.one_D == 'all':
+                        baselines = []
+                    else:
+                        baselines = [int(x) for x in self.args.one_D.split(',')]
+                    wu.plot_multi_1D(files, baselines)
                 else:
                     raise Exception(self.MISSING_TAG_ERR)
 
