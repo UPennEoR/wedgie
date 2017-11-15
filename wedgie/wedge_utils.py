@@ -572,8 +572,8 @@ def plot_timeavg(npz_name, path):
         vmax = -2
         vmin = -12
     else:
-        vmax = -1
-        vmin = -8
+        vmax = 1
+        vmin = -7
 
     # format data so y axis properly scaled
     plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -647,8 +647,8 @@ def plot_timeavg_multi(npz_names, path):
             vmax = -2
             vmin = -12
         else:
-            vmax = -1
-            vmin = -8
+            vmax = 1
+            vmin = -7
 
         # format data so y axis properly scaled
         plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -1029,7 +1029,7 @@ def plot_multi_1D(npz_names, baselines=[]):
         baselines = range(len(plot_data['wslices']))
 
     # set up the plotting space
-    plt.figure(figsize=(18, 4))
+    plt.figure(figsize=(20, 5))
     G = gridspec.GridSpec(1, 4)
 
     # plot each 1D plot
@@ -1049,7 +1049,7 @@ def plot_multi_1D(npz_names, baselines=[]):
             plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
         plt.axvline(0, color='#d3d3d3', linestyle='--')
         plt.xlim((-450, 450))
-        plt.ylim((-3.0, 2.0))
+        plt.ylim((-7.0, 1.0))
 
         if n == 0:
             plt.legend(loc='upper left')
