@@ -33,7 +33,7 @@ parser.add_argument('-F',
 parser.add_argument('-C',
                     '--calfile',
                     help='Input the calfile to be used for analysis.',
-                    default='hsa7458_v001')
+                    default=None)
 parser.add_argument('-P',
                     '--pol',
                     help='Input a comma-delimited list of polatizations to plot.',
@@ -175,7 +175,9 @@ class Batch(object):
 
     def format_calfile(self):
         """Remove '.py' from the end of the calfile"""
-        self.calfile = self.args.calfile.split('.py')[0]
+        self.calfile = self.args.calfile
+        if self.calfile is not None:
+            self.calfile = self.args.calfile.split('.py')[0]
 
     def create_history(self):
         self.history['filenames'] = self.files
@@ -447,7 +449,7 @@ class Batch(object):
             for i in range(len(horizons)):
                 x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
                 x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
-                plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+                plt.plot(x1, y1, x2, y2, color='black', linestyle='--', linewidth=.75)
                 j = plotindeces[i]
 
             file1 = file1.split('/')[-1].split('.')
@@ -465,8 +467,8 @@ class Batch(object):
 
             # embed()
 
-            if end1 != end2 or zen1 != zen2:
-                raise Exception('You did not supply the same type of file!')
+            # if end1 != end2 or zen1 != zen2:
+                # raise Exception('You did not supply the same type of file!')
 
             file = '.'.join(zen1 + time + end1)
 

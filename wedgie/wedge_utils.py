@@ -11,6 +11,7 @@ Paul La Plante <plaplant_at_sas.upenn.edu>
 
 import aipy
 from pyuvdata import UVData
+import pyuvdata.utils as uvutils
 
 import numpy as np
 import matplotlib as mpl
@@ -24,6 +25,8 @@ import gen_utils as gu
 import cosmo_utils as cu
 
 import decimal
+
+import hera_cal
 
 # For Interactive Development
 from IPython import embed
@@ -64,7 +67,8 @@ class Wedge(object):
         self.delays = list()
 
         decimal.getcontext().prec = 6
-        self.calculate_caldata()
+        if self.calfile is not None:
+            self.calculate_caldata()
 
     # Methods common throughout Wedge Creation
     def name_npz(self, tag):
@@ -95,7 +99,7 @@ class Wedge(object):
 
         print(self.npz_name)
 
-    def calculate_caldata(self):
+    def calculate_caldata(self, uvd=None):
         """
         Returns a dictionary of baseline lengths and the corresponding pairs. The data is based
         on a calfile. ex_ants is a list of integers that specify antennae to be exlcuded from
@@ -103,12 +107,22 @@ class Wedge(object):
 
         Requires cal file to be in PYTHONPATH.
         """
-        try:
-            print('Reading calfile: {cfile}'.format(cfile=self.calfile))
-            exec("import {cfile} as cal".format(cfile=self.calfile))
-            antennae = cal.prms['antpos_ideal']
-        except ImportError:
-            raise Exception("Unable to import {cfile}.".format(cfile=self.calfile))
+        if self.calfile is not None:
+            try:
+                print('Reading calfile: {cfile}'.format(cfile=self.calfile))
+                exec("import {cfile} as cal".format(cfile=self.calfile))
+                antennae = cal.prms['antpos_ideal']
+            except ImportError:
+                raise Exception("Unable to import {cfile}.".format(cfile=self.calfile))
+        else:
+            # build antenna positions from data file itself
+            print('Generating calibration information from data file')
+            antennae = {}
+            lat, lon, alt = uvd.telescope_location_lat_lon_alt
+            for i, antnum in enumerate(uvd.antenna_numbers):
+                pos = uvd.antenna_positions[i, :] + uvd.telescope_location
+                xyz = uvutils.ENU_from_ECEF(pos, latitude=lat, longitude=lon, altitude=alt)
+                antennae[antnum] = {'top_x': xyz[0], 'top_y': xyz[1], 'top_z': xyz[2]}
 
         # Remove all placeholder antennae from consideration
         # Remove all antennae from ex_ants from consideration
@@ -215,6 +229,10 @@ class Wedge(object):
         uvyy = UVData()
         uvyy.read_miriad(self.files['yy'])
 
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxx)
+
         # get metadata
         info = {}
         # convert from Hz -> GHz
@@ -245,9 +263,9 @@ class Wedge(object):
         del uvxx, uvyy
 
         # assign to object variables
-        self.info = info
-        self.data = dI
-        self.flags = fI
+        self.info = info.copy()
+        self.data = dI.copy()
+        self.flags = fI.copy()
 
 
     def form_stokesQ(self):
@@ -256,6 +274,10 @@ class Wedge(object):
         uvxx.read_miriad(self.files['xx'])
         uvyy = UVData()
         uvyy.read_miriad(self.files['yy'])
+
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxx)
 
         # get metadata
         info = {}
@@ -287,9 +309,9 @@ class Wedge(object):
         del uvxx, uvyy
 
         # assign to object variables
-        self.info = info
-        self.data = dQ
-        self.flags = fQ
+        self.info = info.copy()
+        self.data = dQ.copy()
+        self.flags = fQ.copy()
 
     def form_stokesU(self):
         """Calculate U (VU = Vxy + Vyx)"""
@@ -297,6 +319,10 @@ class Wedge(object):
         uvxy.read_miriad(self.files['xy'])
         uvyx = UVData()
         uvyx.read_miriad(self.files['yx'])
+
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxy)
 
         # get metadata
         info = {}
@@ -328,9 +354,9 @@ class Wedge(object):
         del uvxy, uvyx
 
         # assign to object variables
-        self.info = info
-        self.data = dU
-        self.flags = fU
+        self.info = info.copy()
+        self.data = dU.copy()
+        self.flags = fU.copy()
 
     def form_stokesV(self):
         """Calculate V (VV = -i*Vxy + i*Vyx)"""
@@ -338,6 +364,10 @@ class Wedge(object):
         uvxy.read_miriad(self.files['xy'])
         uvyx = UVData()
         uvyx.read_miriad(self.files['yx'])
+
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uvxy)
 
         # get metadata
         info = {}
@@ -369,15 +399,19 @@ class Wedge(object):
         del uvxy, uvyx
 
         # assign to object variables
-        self.info = info
-        self.data = dV
-        self.flags = fV
+        self.info = info.copy()
+        self.data = dV.copy()
+        self.flags = fV.copy()
 
     # Load data of one polarization:
     def load_file(self):
         """Loads data with given polarization, self.pol, from files, self.files"""
         uv = UVData()
         uv.read_miriad(self.files[self.pol])
+
+        # compute redundancy information if it hasn't been done yet
+        if self.caldata == tuple():
+            self.calculate_caldata(uv)
 
         # get metadata
         info = {}
@@ -406,19 +440,21 @@ class Wedge(object):
         del uv
 
         # assign to object variables
-        self.info = info
-        self.data = d
-        self.flags = f
+        self.info = info.copy()
+        self.data = d.copy()
+        self.flags = f.copy()
 
     # Format flags for correct application:
     def apply_flags(self):
+        # Apply flags to data by zeroing it.  Need to make the replaced value *complex*
+        for pair in self.caldata[2]:
+        #    self.data[pair][self.pol] *= self.flags[pair][self.pol]
+            self.data[pair][self.pol] = np.where(self.flags[pair][self.pol],0.+0.*1j,self.data[pair][self.pol])
+
         """Turns flags from False/True --> 1/0."""
         for i in self.flags:
             for j in self.flags[i]:
                     self.flags[i][j] = np.logical_not(self.flags[i][j]).astype(int)
-
-        for pair in self.caldata[2]:
-            self.data[pair][self.pol] *= self.flags[pair][self.pol]
 
     # Types of Wedge creating methods:
     def timeavg(self):
@@ -439,8 +475,15 @@ class Wedge(object):
         ntimes = len(self.info['times'])
         nchan = len(self.info['freqs'])
 
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        if self.calfile is not None:
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        else:
+            uv = UVData()
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            # convert from Hz -> GHz
+            freqs = uv.freq_array[0, :] / 1e9
+            self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
         del uv
         self.aa.set_active_pol(self.pol)
 
@@ -467,8 +510,15 @@ class Wedge(object):
         ntimes = len(self.info['times'])
         nchan = len(self.info['freqs'])
 
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        if self.calfile is not None:
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        else:
+            uv = UVData()
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            # convert from Hz -> GHz
+            freqs = uv.freq_array[0, :] / 1e9
+            self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
         del uv
         self.aa.set_active_pol(self.pol)
 
@@ -494,8 +544,15 @@ class Wedge(object):
         ntimes = len(self.info['times'])
         nchan = len(self.info['freqs'])
 
-        uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
-        self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        if self.calfile is not None:
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
+        else:
+            uv = UVData()
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            # convert from Hz -> GHz
+            freqs = uv.freq_array[0, :] / 1e9
+            self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
         del uv
         self.aa.set_active_pol(self.pol)
 
