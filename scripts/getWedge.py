@@ -14,7 +14,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import scipy.constants as sc
 
-import wedge_utils as wu
+import wedgie.wedge_utils as wu
 
 import argparse, os, multiprocessing
 from copy import deepcopy

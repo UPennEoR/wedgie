@@ -8,7 +8,7 @@ Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 """
 import argparse
-import wedge_utils as wu
+import wedgie.wedge_utils as wu
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-F', '--filenames', help='Input a list of filenames to be analyzed.', nargs='*', required=True)

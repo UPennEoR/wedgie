@@ -9,7 +9,8 @@ catalog_directory saves all LSTs in a given directory for later use
 find_LST searches the saved LST catalog for files within a given LST range
 """
 
-import argparse, os
+import argparse
+import os
 import numpy as np
 from pyuvdata import UVData
 uv = UVData()
