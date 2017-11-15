@@ -1,5 +1,6 @@
 # From CASA Memo Calibrating HERA-19 with a Galactic Centre Observation
-import os, shutil
+import os
+import shutil
 import clplot.clquants as clquants
 
 """

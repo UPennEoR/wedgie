@@ -1,5 +1,5 @@
 import numpy as np
-import gen_utils as gu
+import wedgie.gen_utils as gu
 from astropy.cosmology import Planck15 as cosmo
 from astropy import units as u
 from astropy import constants as c

@@ -1,4 +1,7 @@
-import imageio, glob, argparse, pprint
+import imageio
+import glob
+import argparse
+import pprint
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-F', '--files', help='Files to be giffed. Must use "-F=" notation.', nargs='*', required=True)
