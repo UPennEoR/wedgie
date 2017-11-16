@@ -1106,7 +1106,7 @@ def plot_multi_1D(npz_names, baselines=[]):
             plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
         plt.axvline(0, color='#d3d3d3', linestyle='--')
         plt.xlim((-450, 450))
-        plt.ylim((-7.0, 1.0))
+        plt.ylim((-8.0, 1.0))
 
         if n == 0:
             plt.legend(loc='upper left')
