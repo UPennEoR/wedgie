@@ -3,13 +3,20 @@ To make the catalogue, run
 
 This will save an npz file called `LST_catalog.npz` in the specified path.
 
+With the new "install", you should just be able to invoke it as
+
+catalog_LST.py -p 2458050 -e uv -c
+
+assuming you wanted to catalog all uv files in the directory 245805, which is immediately below the current directory.
+
 To get all files/indices within an LST range, run
 
 `python catalog_LST.py -p path_to_directory_you_want_to_search -r LSTstart_LSTstop -f`
 
-where `LSTstart_LSTstop` is given in radians, for instance
-`3.934_3.936`.  Note that this requires having run the cataloger in
+where `LSTstart_LSTstop` is given in radians, for instance `3.934_3.936`.  Note that this requires having run the cataloger in
 that director beforehand.
+
+
 
 To implement this into a script, you
 
