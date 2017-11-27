@@ -177,7 +177,7 @@ class Batch(object):
         """Remove '.py' from the end of the calfile"""
         self.calfile = self.args.calfile
         if self.calfile is not None:
-            self.calfile = self.args.calfile.split('.py')[0]
+            self.calfile = self.args.calfile.split('/')[-1].split('.py')[0]
 
     def create_history(self):
         self.history['filenames'] = self.files
