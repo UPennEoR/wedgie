@@ -324,44 +324,65 @@ class Batch(object):
             file1 = self.files[pol][0].split('/')[-1].split('.')
             file2 = self.files[pol][-1].split('/')[-1].split('.')
 
+            zen1 = [file1[0]]
+            zen2 = [file2[0]]
+            if zen1 == zen2:
+                zen = zen1
+            else:
+                raise Exception("Your files aren't the same (zen).")
+
             day1 = [file1[1]]
             day2 = [file2[1]]
-            day = ['__'.join(day1 + day2)]
+            day = ['+'.join(day1 + day2)]
 
             time1 = [file1[2]]
             time2 = [file2[2]]
-            time = ['__'.join(time1 + time2)]
+            time = ['+'.join(time1 + time2)]
 
-            end1 = file1[3:-2]
-            end2 = file2[3:-2]
+            ex_ants1 = [file1[4]]
+            ex_ants2 = [file2[4]]
+            if ex_ants1 == ex_ants2:
+                ex_ants = ex_ants1
+            else:
+                raise Exception("Your files aren't the same (ex_ants).")
 
-            zen1 = [file1[0]]
-            zen2 = [file2[0]]
+            freq_range1 = [file1[5]]
+            freq_range2 = [file2[5]]
+            if freq_range1 == freq_range2:
+                freq_range = freq_range1
+            else:
+                raise Exception("Your files aren't the same (freq_range).")
 
-            if end1 != end2 or zen1 != zen2:
-                raise Exception('You did not supply the same type of file!')
+            HH1 = [file1[6]]
+            HH2 = [file2[6]]
+            if HH1 == HH2:
+                HH = HH1
+            else:
+                raise Exception("Your files aren't the same (HH).")
 
-            npz_name = '.'.join(zen1 + day + time + end1)
+            ext1 = [file1[7]]
+            ext2 = [file2[7]]
+            if ext1 == ext2:
+                ext = ext1
+            else:
+                raise Exception("Your files aren't the same (ext).")
+
+            npz_name = '.'.join(zen + day + time + [pol] + ex_ants + freq_range + HH + ext + ['diff'])
 
             np.savez(
                 npz_name,
                 pol=pol,
                 caldata=caldata,
-                wslices=wslices,
-                cwslices=cwslices,
-                # aslices=antpairslices,
+                wslices=wedgeslices,
+                cwslices=cwedgeslices,
                 delays=delays,
-                times=times,
-                # bl_length=bl_length,
-                # hist=history
-                )
+                times=times)
 
             for npz in self.files[pol]:
                 os.remove(npz)
                 
     def difference(self):
         self.format_pols()
-        os.mkdir(self.args.path + "diffs")
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
         for pol in self.pols:
@@ -389,93 +410,88 @@ class Batch(object):
                 delays = data1['delays']
                 caldata = data1['caldata']
             else:
-                raise Exception('delays and caldata arrays are not the same.')
+                raise Exception('delays and/or caldata arrays are not the same.')
+            
+            # Find overlap in lst
+            indices1 = np.where(np.logical_and(times1[2] >= times2[2][0], times1[2] <= times2[2][-1]))[0]
+            indices2 = np.where(np.logical_and(times2[2] >= times1[2][0], times2[2] <= times1[2][-1]))[0]
 
-            for i, time in enumerate(times1[0]):
-                if time >= times2[0, 0]:
-                    start = i
-                    break
+            # Create times array with overlapping lst range.
+            times1 = np.take(times1, indices1, axis=1)
+            times2 = np.take(times2, indices2, axis=1)
+            times = times1[...]
 
-            for i, time in enumerate(times2[0]):
-                if time >= times1[0, -1]:
-                    end = i
-                    break
+            # Make cwedge arrays represent only data from overlapping lst.
+            cwedge1 = np.take(cwedge1, indices1, axis=1)
+            cwedge2 = np.take(cwedge2, indices2, axis=1)
 
-            times1 = times1[:, start:]
-            times2 = times2[:, :end]
+            # Create cwedgeslices array to return information before time averaging.
+            cwedgeslices = cwedge1 - cwedge2
 
-            cwedge1 = np.nanmean(cwedge1[:, start:, :], axis=1)
-            cwedge2 = np.nanmean(cwedge2[:, :end, :], axis=1)
+            # Average the data over time axis.
+            wedge1 = np.nanmean(cwedge1, axis=1)
+            wedge2 = np.nanmean(cwedge2, axis=1)
 
-            # wedgeslices = np.fft.fftshift(np.abs(cwedge1 - cwedge2), axes=1)
-            wedgeslices = np.fft.fftshift((cwedge1 - cwedge2).real, axes=1)
-
-            # Plot difference data.
-            plotindeces = [int(round(i*10)) for i in caldata[3]]
-            plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
-            j = 0
-            for i in range(len(plotindeces)):
-                plotdata[j:plotindeces[i]] = wedgeslices[i]
-                j = plotindeces[i]
-
-            plt.imshow(
-                plotdata,
-                aspect='auto',
-                interpolation='nearest',
-                extent=[delays[0], delays[-1], plotindeces[-1], 0],
-                vmin=-0.01,
-                vmax=0.01,
-                cmap=plt.get_cmap('bwr'))
-
-            plt.colorbar().set_label('Linear Difference')
-            plt.xlabel("Delay [ns]")
-            plt.xlim((-450, 450))
-            plt.ylabel("Baseline Length [m]")
-            plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
-
-            plt.suptitle("JD: {JD1} - {JD2}; LST {start} to {end}".format(
-                JD1=file1.split('/')[-1].split('.')[1],
-                JD2=file2.split('/')[-1].split('.')[1],
-                start=times1[1][0][:-6],
-                end=times2[1][-1][:-6]))
-            plt.title(file1.split('/')[-1].split('.')[3])
-
-            plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
-
-            horizons = []
-            for length in caldata[3]:
-                horizons.append(length / sc.c * 10**9)
-            j = 0
-            for i in range(len(horizons)):
-                x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
-                x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
-                plt.plot(x1, y1, x2, y2, color='black', linestyle='--', linewidth=.75)
-                j = plotindeces[i]
+            # Create wedgeslices array to be plotted.
+            wedgeslices = np.fft.fftshift(np.abs(wedge1 - wedge2), axes=1)
+            wedgeslices = np.where(wedgeslices > 0, np.log10(wedgeslices), -100)
 
             file1 = file1.split('/')[-1].split('.')
             file2 = file2.split('/')[-1].split('.')
 
-            time1 = ['_'.join(file1[1:3])]
-            time2 = ['_'.join(file2[1:3])]
-            time = ['-'.join(time1 + time2)]
-
-            end1 = file1[3:-2]
-            end2 = file2[3:-2]
-
             zen1 = [file1[0]]
             zen2 = [file2[0]]
+            if zen1 == zen2:
+                zen = zen1
+            else:
+                raise Exception("Your files aren't the same (zen).")
 
-            # embed()
+            day1 = [file1[1]]
+            day2 = [file2[1]]
+            day = ['--'.join(day1 + day2)]
 
-            # if end1 != end2 or zen1 != zen2:
-                # raise Exception('You did not supply the same type of file!')
+            time1 = [file1[2]]
+            time2 = [file2[2]]
+            time = ['--'.join(time1 + time2)]
 
-            file = '.'.join(zen1 + time + end1)
+            ex_ants1 = [file1[4]]
+            ex_ants2 = [file2[4]]
+            if ex_ants1 == ex_ants2:
+                ex_ants = ex_ants1
+            else:
+                raise Exception("Your files aren't the same (ex_ants).")
 
-            plt.savefig(self.args.path + "diffs/" + file + '.diff.png')
-            # plt.show()
-            # plt.close()
-            plt.clf()
+            freq_range1 = [file1[5]]
+            freq_range2 = [file2[5]]
+            if freq_range1 == freq_range2:
+                freq_range = freq_range1
+            else:
+                raise Exception("Your files aren't the same (freq_range).")
+
+            HH1 = [file1[6]]
+            HH2 = [file2[6]]
+            if HH1 == HH2:
+                HH = HH1
+            else:
+                raise Exception("Your files aren't the same (HH).")
+
+            ext1 = [file1[7]]
+            ext2 = [file2[7]]
+            if ext1 == ext2:
+                ext = ext1
+            else:
+                ext = ['--'.join(ext1 + ext2)]
+
+            npz_name = '.'.join(zen + day + time + [pol] + ex_ants + freq_range + HH + ext + ['diff'])
+
+            np.savez(
+                npz_name,
+                pol=pol,
+                caldata=caldata,
+                wslices=wedgeslices,
+                cwslices=cwedgeslices,
+                delays=delays,
+                times=times)
 
 
 zen = Batch(args)
