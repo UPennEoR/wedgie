@@ -267,7 +267,6 @@ class Wedge(object):
         self.data = dI.copy()
         self.flags = fI.copy()
 
-
     def form_stokesQ(self):
         """Calculate Q (VQ = Vxx - Vyy)"""
         uvxx = UVData()
@@ -676,8 +675,6 @@ def plot_timeavg(npz_name, path):
 
     # save and close
     plt.savefig(path + npz_name[:-4] + '.png')
-    plt.show()
-    plt.close()
     plt.clf()
 
 
@@ -764,9 +761,140 @@ def plot_timeavg_multi(npz_names, path):
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
     plt.savefig(path + npz_name + '.png')
+    plt.clf()
 
-    # plt.show()
-    # plt.close()
+
+def plot_diff(npz_name, path):
+    # load and format data
+    data = np.load(npz_name)
+    npz_name = npz_name.split('/')[-1]
+    delays = data['delays']
+    wedgeslices = data['wslices']
+    caldata = data['caldata']
+    times = data['times']
+
+    # format data so y axis properly scaled
+    plotindeces = [int(round(i*10)) for i in caldata[3]]
+    plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
+    j = 0
+    for i in range(len(plotindeces)):
+        plotdata[j:plotindeces[i]] = wedgeslices[i]
+        j = plotindeces[i]
+
+    # plot the data
+    plt.imshow(
+        plotdata,
+        aspect='auto',
+        interpolation='nearest',
+        extent=[delays[0], delays[-1], plotindeces[-1], 0],
+        vmax=2,
+        vmin=-8)
+
+    # label colorbar and axes, format axes
+    plt.colorbar().set_label("Logarithmic Difference")
+    plt.xlabel("Delay [ns]")
+    plt.xlim((-450, 450))
+    plt.ylabel("Baseline Length [m]")
+    plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
+
+    # set titles
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
+    plt.title(npz_name.split('.')[3])
+
+    # plot center line
+    plt.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+
+    # plot horizon lines
+    horizons = []
+    for length in caldata[3]:
+        horizons.append(length / sc.c * 10**9)
+    j = 0
+    for i in range(len(horizons)):
+        x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
+        x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+        plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+        j = plotindeces[i]
+
+    plt.savefig(path + npz_name[:-4] + '.png')
+    plt.clf()
+
+
+def plot_diff_multi(npz_names, path):
+    nplots = len(npz_names)
+
+    # Form subplots
+    f, axes = plt.subplots(1, nplots, sharex=True, sharey=True, figsize=(12, 5))
+
+    # Loop through each subplot and plot
+    for i, ax in enumerate(axes):
+        # Get data from npz_files
+        npz_name = npz_names[i]
+        data = np.load(npz_name)
+        npz_name = npz_name.split('/')[-1]
+        delays = data['delays']
+        wedgeslices = data['wslices']
+        caldata = data['caldata']
+        times = data['times']
+
+        ax.set_title(npz_name.split('.')[3])
+
+        # format data so y axis properly scaled
+        plotindeces = [int(round(i*10)) for i in caldata[3]]
+        plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
+        j = 0
+        for i in range(len(plotindeces)):
+            plotdata[j:plotindeces[i]] = wedgeslices[i]
+            j = plotindeces[i]
+
+        # plot the data
+        plot = ax.imshow(
+            plotdata,
+            aspect='auto',
+            interpolation='nearest',
+            extent=[delays[0], delays[-1], plotindeces[-1], 0],
+            vmax=2,
+            vmin=-8)
+
+        # Plot center line to easily see peak offset
+        ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
+
+        # plot horizon lines
+        horizons = []
+        for length in caldata[3]:
+            horizons.append(length / sc.c * 10**9)
+        j = 0
+        for i in range(len(horizons)):
+            x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
+            x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+            ax.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+            j = plotindeces[i]
+
+        del npz_name
+
+    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
+
+    # Smooshes the plots together
+    f.subplots_adjust(wspace=0)
+
+    plt.xlim((-450, 450))
+    plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
+
+    # X and Y axis labels
+    f.text(0.5, 0.025, 'Delay [ns]', ha='center')
+    f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')
+
+    # Colorbar
+    cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
+    cbar = f.colorbar(plot, cax=cbar_ax)
+    cbar.set_label("Logarithmic Difference")
+
+    # Naming and saving
+    npz_names = [npz_name.split('/')[-1] for npz_name in npz_names]
+    pols = [npz_name.split('.')[3] for npz_name in npz_names]
+    pols = ["".join(pols)]
+    f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
+    npz_name = ".".join(f1 + pols + f2)
+    plt.savefig(path + npz_name + '.png')
     plt.clf()
 
 
