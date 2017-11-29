@@ -72,29 +72,34 @@ class Wedge(object):
 
     # Methods common throughout Wedge Creation
     def name_npz(self, tag):
-        file_start = self.files[self.files.keys()[0]][0].split('/')[-1].split('.')
-        file_end = self.files[self.files.keys()[0]][-1].split('/')[-1].split('.')
+        file_start = self.files[self.pol][0].split('/')[-1].split('.')
+        file_end = self.files[self.pol][-1].split('/')[-1].split('.')
 
-        zen_day = file_start[:2]
-        time_range = ['{start}_{end}'.format(start=file_start[2], end=file_end[2])]
-        HH = [file_start[4]]
-        ext = [file_start[5]]
+        day = [str(self.info['times'][0]).split('.')[0]]
+        JDT1 = [str(self.info['times'][0]).split('.')[1]]
+        JDT2 = [str(self.info['times'][-1]).split('.')[1]]
+        JDT = ['_{files}_'.format(files=len(self.files[self.pol])).join(JDT1 + JDT2)]
         pol = [self.pol]
-        freq_range = ['{start}_{end}'.format(start=self.freq_range[0], end=self.freq_range[1])]
         tag = [tag]
-
-        npz_name = zen_day + time_range + pol + freq_range + HH + ext + tag + ["npz"]
+        freq_range = ['{start}_{end}'.format(start=self.freq_range[0], end=self.freq_range[1])]
 
         if self.ex_ants:
             ex_ants = [str(ant) for ant in self.ex_ants]
-            ex_ants = "_".join(ex_ants)
-            npz_name.insert(4, ex_ants)
+            ex_ants = ["_".join(ex_ants)]
         else:
-            ex_ants = "None"
-            npz_name.insert(4, ex_ants)
+            ex_ants = ["None"]
 
+        if self.args.sim:
+            zen = ['zen']
+            HH = ['HH']
+            ext = ['SIM']
+        else:
+            zen = [file_start[0]]
+            HH = [file_start[4]]
+            ext = [file_start[-1]]
+
+        npz_name = zen + day + JDT + pol + ex_ants + freq_range + HH + ext + tag
         npz_name = '.'.join(npz_name)
-
         self.npz_name = self.args.path + npz_name
 
         print(self.npz_name)
@@ -475,11 +480,11 @@ class Wedge(object):
         nchan = len(self.info['freqs'])
 
         if self.calfile is not None:
-            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            uv = aipy.miriad.UV(self.files[self.pol][0])
             self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
         else:
             uv = UVData()
-            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            uv.read_miriad(self.files[self.pol][0])
             # convert from Hz -> GHz
             freqs = uv.freq_array[0, :] / 1e9
             self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
@@ -510,11 +515,11 @@ class Wedge(object):
         nchan = len(self.info['freqs'])
 
         if self.calfile is not None:
-            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            uv = aipy.miriad.UV(self.files[self.pol][0])
             self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
         else:
             uv = UVData()
-            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            uv.read_miriad(self.files[self.pol][0])
             # convert from Hz -> GHz
             freqs = uv.freq_array[0, :] / 1e9
             self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
@@ -544,11 +549,11 @@ class Wedge(object):
         nchan = len(self.info['freqs'])
 
         if self.calfile is not None:
-            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
+            uv = aipy.miriad.UV(self.files[self.pol][0])
             self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
         else:
             uv = UVData()
-            uv.read_miriad(self.files[self.files.keys()[0]][0])
+            uv.read_miriad(self.files[self.pol][0])
             # convert from Hz -> GHz
             freqs = uv.freq_array[0, :] / 1e9
             self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)

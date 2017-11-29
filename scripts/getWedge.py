@@ -106,6 +106,11 @@ parser.add_argument('-c',
                     '--combine',
                     action='store_true')
 
+# Specify simulated data
+parser.add_argument('-s',
+                    '--sim',
+                    action='store_true')
+
 args = parser.parse_args()
 
 
@@ -125,6 +130,8 @@ class Batch(object):
         self.load = int()
 
         self.MISSING_TAG_ERR = "You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_type=X)."
+        self.stokes_pols = ['I', 'Q', 'U', 'V']
+        self.standard_pols = ['xx', 'xy', 'yx', 'yy']
 
     def format_batch(self):
         self.format_pols()
@@ -136,12 +143,9 @@ class Batch(object):
 
     def format_pols(self):
         """Format the polarizations, e.g.: translating from IQUV to xx,xy,yx,yy"""
-        stokes_pols = ['I', 'Q', 'U', 'V']
-        standard_pols = ['xx', 'xy', 'yx', 'yy']
-
         self.pols = self.args.pol.split(',')
 
-        if any(pol in self.pols for pol in stokes_pols):
+        if any(pol in self.pols for pol in self.stokes_pols):
             self.pol_type = 'stokes'
 
             if ('I' in self.pols) or ('Q' in self.pols):
@@ -149,20 +153,28 @@ class Batch(object):
             if ('U' in self.pols) or ('V' in self.pols):
                 self.file_pols.extend(['xy', 'yx'])
 
-        elif any(pol in self.pols for pol in standard_pols):
+        elif any(pol in self.pols for pol in self.standard_pols):
             self.pol_type = 'standard'
             self.file_pols = self.pols[:]
 
     def format_files(self):
         """Generate the filenames from given files and given polarizations"""
-        for pol in self.file_pols:
-            pol_files = []
+        if self.args.sim:
+            self.files = {pol: [] for pol in self.file_pols}
             for file in self.args.filenames:
-                file_pol = file.split('.')[-3]
-                pol_file = file.split(file_pol)[0] + pol + file.split(file_pol)[1]
-                pol_files.append(pol_file)
+                for s_pol in self.standard_pols:
+                    if s_pol in file:
+                        self.files[s_pol].append(file)
+                        break
+        else:
+            for pol in self.file_pols:
+                pol_files = []
+                for file in self.args.filenames:
+                    file_pol = file.split('.')[-3]
+                    pol_file = file.split(file_pol)[0] + pol + file.split(file_pol)[1]
+                    pol_files.append(pol_file)
 
-            self.files[pol] = sorted(list(set(pol_files)))
+                self.files[pol] = sorted(list(set(pol_files)))
 
     def format_exants(self):
         """Takes the input ex_ants and creates a list of integers"""
@@ -367,14 +379,14 @@ class Batch(object):
             else:
                 raise Exception("Your files aren't the same (ext).")
 
-            npz_name = '.'.join(zen + day + time + [pol] + ex_ants + freq_range + HH + ext + ['diff'])
+            npz_name = '.'.join(zen + day + time + [pol] + ex_ants + freq_range + HH + ext + ['timeavg'])
 
             np.savez(
                 npz_name,
                 pol=pol,
                 caldata=caldata,
-                wslices=wedgeslices,
-                cwslices=cwedgeslices,
+                wslices=wslices,
+                cwslices=cwslices,
                 delays=delays,
                 times=times)
 
