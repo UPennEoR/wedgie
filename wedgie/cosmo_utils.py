@@ -1,5 +1,5 @@
 import numpy as np
-import wedgie.gen_utils as gu
+import gen_utils as gu
 from astropy.cosmology import Planck15 as cosmo
 from astropy import units as u
 from astropy import constants as c
@@ -100,4 +100,45 @@ def uv2kpr(blmag,cen_fq):
     uvmag = blmag/lam
     kpr = 2*np.pi*uvmag/(cosmo.comoving_transverse_distance(z)*cosmo.h)
     return kpr.to(1./u.Mpc)
+
+def X2Y(z):
+    """
+    [h^-3 Mpc^3] / [str * GHz] scalar conversion between observing and cosmological coordinates
+    """
+    return dL_dth(z)**2 * dL_df(z)
+
+def jy_to_mK(fq):
+    """
+    Return [mK] / [Jy] for a beam size vs. frequency (in GHz) defined by the
+    polynomial bm_poly.
     
+    fq should be a u.GHz quantity.
+    """
+    cen_fq = np.median(fq.to(u.GHz))
+    lam = (c.c/cen_fq).to(u.m)
+    bm = np.polyval(HERA_BEAM_POLY, cen_fq.value)
+    factor = lam**2 / (2 * c.k_B * bm)
+    return factor.to(u.mK/u.Jy)
+
+def mK2_to_power(fq):
+    """
+    Conversion factor for cosmological power for
+    list of frequency-unit objects describing the band under measurement.
+    
+    
+    ```scalar = C.pspec.X2Y(z) * bm * NEB
+    ```
+    where
+    ```B : bandwidth in GHz, which gives
+    NEB: noise-effective bandwidth; NEB = B / 2.006
+    bm = np.polyval(C.pspec.DEFAULT_BEAM_POLY,fq) #integral of polynomial approximation of the beam at frequency fq```
+    """
+    cen_fq = np.median(fq.to(u.GHz))
+    z = f2z(cen_fq)
+    bm = np.polyval(HERA_BEAM_POLY,cen_fq.value)
+    B = (fq[-1]-fq[0]).to(u.GHz)
+    NEB = B/2.006
+    scalar = X2Y(z)*bm*NEB
+    return scalar
+    
+

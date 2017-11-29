@@ -30,9 +30,9 @@ def display_baseline_length_dict():
 			total_pairs += 1
 
 	pprint(baselines)
-	print "Total Unique Baselines:", total_baselines
-	print "Total Pairs:", total_pairs
-	print "Bad Antennae:", bad_ants
+	print("Total Unique Baselines:", total_baselines)
+	print("Total Pairs:", total_pairs)
+	print("Bad Antennae:", bad_ants)
 
 def RMSE(fit_function, real_function):
     """Finds and return the RMSE between a function and the fit of that function."""
