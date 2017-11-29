@@ -15,6 +15,7 @@ parser.add_argument('-F', '--filenames', help='Input a list of filenames to be a
 parser.add_argument('-t', '--timeavg', action='store_true')
 parser.add_argument('-b', '--blavg', action='store_true')
 parser.add_argument('-f', '--flavors', action='store_true')
+parser.add_argument('-D', '--diff', action='store_true')
 parser.add_argument('-s', '--single', help='Plot a single plot from supplied npz files.', action='store_true')
 parser.add_argument('-m', '--multi', help='Plot 4 plots at once from supplied npz files.', action='store_true')
 
@@ -45,6 +46,8 @@ class Graph(object):
                     wu.plot_flavors(file, self.path)
                 elif self.args.bl_type:
                     wu.plot_bltype(file)
+                elif self.args.diff:
+                    wu.plot_diff(file, self.path)
                 elif self.args.delay:
                     wu.plot_delayavg(file)
                 elif self.args.one_D:
@@ -63,6 +66,8 @@ class Graph(object):
                     wu.plot_timeavg_multi(files, self.path)
                 elif self.args.flavors:
                     wu.plot_flavors_multi(files, self.path)
+                elif self.args.diff:
+                    wu.plot_diff_multi(files, self.path)
                 elif self.args.one_D:
                     if self.args.one_D == 'all':
                         baselines = []
