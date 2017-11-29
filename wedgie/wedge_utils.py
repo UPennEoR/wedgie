@@ -72,7 +72,7 @@ class Wedge(object):
 
     # Methods common throughout Wedge Creation
     def name_npz(self, tag):
-        file_start = self.files[self.pol][0].split('/')[-1].split('.')
+        file_start = self.files[self.files.keys()[0]][0].split('/')[-1].split('.')
         file_end = self.files[self.pol][-1].split('/')[-1].split('.')
 
         day = [str(self.info['times'][0]).split('.')[0]]
@@ -480,11 +480,11 @@ class Wedge(object):
         nchan = len(self.info['freqs'])
 
         if self.calfile is not None:
-            uv = aipy.miriad.UV(self.files[self.pol][0])
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
             self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
         else:
             uv = UVData()
-            uv.read_miriad(self.files[self.pol][0])
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
             # convert from Hz -> GHz
             freqs = uv.freq_array[0, :] / 1e9
             self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
@@ -515,11 +515,11 @@ class Wedge(object):
         nchan = len(self.info['freqs'])
 
         if self.calfile is not None:
-            uv = aipy.miriad.UV(self.files[self.pol][0])
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
             self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
         else:
             uv = UVData()
-            uv.read_miriad(self.files[self.pol][0])
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
             # convert from Hz -> GHz
             freqs = uv.freq_array[0, :] / 1e9
             self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
@@ -549,11 +549,11 @@ class Wedge(object):
         nchan = len(self.info['freqs'])
 
         if self.calfile is not None:
-            uv = aipy.miriad.UV(self.files[self.pol][0])
+            uv = aipy.miriad.UV(self.files[self.files.keys()[0]][0])
             self.aa = aipy.cal.get_aa(self.calfile, uv['sdf'], uv['sfreq'], uv['nchan'])
         else:
             uv = UVData()
-            uv.read_miriad(self.files[self.pol][0])
+            uv.read_miriad(self.files[self.files.keys()[0]][0])
             # convert from Hz -> GHz
             freqs = uv.freq_array[0, :] / 1e9
             self.aa = hera_cal.utils.get_aa_from_uv(uv, freqs)
