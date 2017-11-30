@@ -78,7 +78,7 @@ class Wedge(object):
         day = [str(self.info['times'][0]).split('.')[0]]
         JDT1 = [str(self.info['times'][0]).split('.')[1]]
         JDT2 = [str(self.info['times'][-1]).split('.')[1]]
-        JDT = ['_{files}_'.format(files=len(self.files[self.pol])).join(JDT1 + JDT2)]
+        JDT = ['_{files}_'.format(files=len(self.files[self.files.keys()[0]])).join(JDT1 + JDT2)]
         pol = [self.pol]
         tag = [tag]
         freq_range = ['{start}_{end}'.format(start=self.freq_range[0], end=self.freq_range[1])]
