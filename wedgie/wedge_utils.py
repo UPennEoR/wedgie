@@ -73,7 +73,7 @@ class Wedge(object):
     # Methods common throughout Wedge Creation
     def name_npz(self, tag):
         file_start = self.files[self.files.keys()[0]][0].split('/')[-1].split('.')
-        file_end = self.files[self.pol][-1].split('/')[-1].split('.')
+        file_end = self.files[self.files.keys()[0]][-1].split('/')[-1].split('.')
 
         day = [str(self.info['times'][0]).split('.')[0]]
         JDT1 = [str(self.info['times'][0]).split('.')[1]]
