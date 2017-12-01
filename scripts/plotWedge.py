@@ -75,9 +75,7 @@ parser.add_argument('-A',
                     default=None)
 parser.add_argument('-s',
                     '--sim',
-                    action='store',
-                    choices=[None, 'low', 'high'],
-                    default=None)
+                    action='store_true')
 
 args = parser.parse_args()
 
