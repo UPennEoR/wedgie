@@ -10,6 +10,7 @@ Paul La Plante <plaplant_at_sas.upenn.edu>
 """
 
 import aipy
+import hera_cal
 from pyuvdata import UVData
 import pyuvdata.utils as uvutils
 
@@ -25,8 +26,6 @@ import wedgie.gen_utils as gu
 import wedgie.cosmo_utils as cu
 
 import decimal
-
-import hera_cal
 
 # For Interactive Development
 from IPython import embed
@@ -595,31 +594,8 @@ class Wedge(object):
             hist=self.history)
 
 
-# Create Wedge from Pitchfork
-def wedge_delayavg(npz_name, multi=False):
-
-    plot_data = np.load(npz_name)
-    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['cldt'][3], plot_data['cldt'][3]
-    # d_start = plot_data['dlys'][0]
-    # d_end = plot_data['dlys'][-1]
-    split = (len(wedgevalues[0, :])/2)
-
-    wedgevalues2 = np.zeros((len(wedgevalues), len(delays)))
-
-    for baselength in range(len(wedgevalues)):
-        for i in range(split):
-            avg = ((wedgevalues[baselength, (split-1+i)]+wedgevalues[baselength, (split+i)])/2)
-            wedgevalues2[baselength][split-i] = avg
-    delayavg_wedgevalues = wedgevalues2.T.T.T
-    npz_delayavg = (npz_name[:-11] + 'delayavg.npz')
-    np.savez(npz_delayavg, wdgslc=delayavg_wedgevalues, dlys=delays, bls=baselines)
-    # saving to longer arrary fml??? idk
-    print("got here!!!")
-    return npz_delayavg
-
-
 # Plotting Functions:
-def plot_timeavg(npz_name, path):
+def plot_timeavg(npz_name, args):
     # load and format data
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
@@ -628,13 +604,6 @@ def plot_timeavg(npz_name, path):
     caldata = data['caldata']
     times = data['times']
 
-    # sets max/min values to plot depending on if its simulated data
-    if 'SIM' in npz_name:
-        vmax = -2
-        vmin = -12
-    else:
-        vmax = 1
-        vmin = -7
 
     # format data so y axis properly scaled
     plotindeces = [int(round(i*10)) for i in caldata[3]]
@@ -644,19 +613,40 @@ def plot_timeavg(npz_name, path):
         plotdata[j:plotindeces[i]] = wedgeslices[i]
         j = plotindeces[i]
 
-    # plot the data
-    plt.imshow(
+    power_axis = r'$\log_{10}({\rm mK}^2)$'
+    plt.xlabel("Delay [ns]")
+    x_extent = (delays[0], delays[-1])
+    factor = 1
+
+    if args.abscal:
+        plotdata = np.log10((10**plotdata) * args.cosmo)
+        power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
+        plt.xlabel(r'$k_{\parallel}$ (h/Mpc)')
+        if args.abscal == 'high':
+            factor = 0.000322*1.7
+        elif args.abscal == 'low':
+            factor =  0.000367*1.7
+        vmax = 17
+        vmin = 8
+    elif args.sim:
+        vmax = 2
+        vmin = -12
+    else:
+        vmax = 1
+        vmin = -8
+
+    plt.xlim((-500*factor, 500*factor))
+
+    plot = plt.imshow(
         plotdata,
         aspect='auto',
         interpolation='nearest',
-        extent=[delays[0], delays[-1], plotindeces[-1], 0],
-        vmin=vmin,
-        vmax=vmax)
+        extent=[x_extent[0]*factor, x_extent[-1]*factor, plotindeces[-1], 0],
+        vmax=vmax,
+        vmin=vmin)
 
-    # label colorbar and axes, format axes
-    plt.colorbar().set_label(r'$\log_{10}({\rm mK}^2)$')
-    plt.xlabel("Delay [ns]")
-    plt.xlim((-450, 450))
+    plt.colorbar().set_label(power_axis)
+    
     plt.ylabel("Baseline Length [m]")
     plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
@@ -673,17 +663,17 @@ def plot_timeavg(npz_name, path):
         horizons.append(length / sc.c * 10**9)
     j = 0
     for i in range(len(horizons)):
-        x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
-        x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+        x1, y1 = [horizons[i]*factor, horizons[i]*factor], [j, plotindeces[i]]
+        x2, y2 = [-horizons[i]*factor, -horizons[i]*factor], [j, plotindeces[i]]
         plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
         j = plotindeces[i]
 
     # save and close
-    plt.savefig(path + npz_name[:-4] + '.png')
+    plt.savefig(args.path + npz_name[:-4] + '.png')
     plt.clf()
 
 
-def plot_timeavg_multi(npz_names, path):
+def plot_timeavg_multi(npz_names, args):
     nplots = len(npz_names)
 
     # Form subplots
@@ -702,13 +692,6 @@ def plot_timeavg_multi(npz_names, path):
 
         ax.set_title(npz_name.split('.')[3])
 
-        if 'SIM' in npz_name:
-            vmax = -2
-            vmin = -12
-        else:
-            vmax = 1
-            vmin = -7
-
         # format data so y axis properly scaled
         plotindeces = [int(round(i*10)) for i in caldata[3]]
         plotdata = np.zeros((plotindeces[-1], wedgeslices.shape[-1]), dtype=np.float64)
@@ -717,14 +700,38 @@ def plot_timeavg_multi(npz_names, path):
             plotdata[j:plotindeces[i]] = wedgeslices[i]
             j = plotindeces[i]
 
-        # plot the data
+        power_axis = r'$\log_{10}({\rm mK}^2)$'
+        x_extent = (delays[0], delays[-1])
+        factor = 1
+
+        if args.abscal:
+            plotdata = np.log10((10**plotdata) * args.cosmo)
+            power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
+            f.text(0.5, 0.025, r'$k_{\parallel}$ (h/Mpc)', ha='center')
+            if args.abscal == 'high':
+                factor = 0.000322*1.7
+            elif args.abscal == 'low':
+                factor =  0.000367*1.7
+            vmax = 17
+            vmin = 8
+        elif args.sim:
+            f.text(0.5, 0.025, 'Delay [ns]', ha='center')
+            vmax = 2
+            vmin = -12
+        else:
+            f.text(0.5, 0.025, 'Delay [ns]', ha='center')
+            vmax = 1
+            vmin = -8
+        
+        ax.set_xlim((-500*factor, 500*factor))
+
         plot = ax.imshow(
             plotdata,
             aspect='auto',
             interpolation='nearest',
-            extent=[delays[0], delays[-1], plotindeces[-1], 0],
-            vmin=vmin,
-            vmax=vmax)
+            extent=[x_extent[0]*factor, x_extent[-1]*factor, plotindeces[-1], 0],
+            vmax=vmax,
+            vmin=vmin)
 
         # Plot center line to easily see peak offset
         ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
@@ -735,8 +742,8 @@ def plot_timeavg_multi(npz_names, path):
             horizons.append(length / sc.c * 10**9)
         j = 0
         for i in range(len(horizons)):
-            x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
-            x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+            x1, y1 = [horizons[i]*factor, horizons[i]*factor], [j, plotindeces[i]]
+            x2, y2 = [-horizons[i]*factor, -horizons[i]*factor], [j, plotindeces[i]]
             ax.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
             j = plotindeces[i]
 
@@ -747,17 +754,15 @@ def plot_timeavg_multi(npz_names, path):
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
 
-    plt.xlim((-450, 450))
     plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
     # X and Y axis labels
-    f.text(0.5, 0.025, 'Delay [ns]', ha='center')
     f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')
 
     # Colorbar
     cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
     cbar = f.colorbar(plot, cax=cbar_ax)
-    cbar.set_label(r'$\log_{10}({\rm mK}^2)$')
+    cbar.set_label(power_axis)
 
     # Naming and saving
     npz_names = [npz_name.split('/')[-1] for npz_name in npz_names]
@@ -765,11 +770,11 @@ def plot_timeavg_multi(npz_names, path):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    plt.savefig(path + npz_name + '.png')
+    plt.savefig(args.path + npz_name + '.png')
     plt.clf()
 
 
-def plot_diff(npz_name, path):
+def plot_diff(npz_name, args):
     # load and format data
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
@@ -793,12 +798,13 @@ def plot_diff(npz_name, path):
         interpolation='nearest',
         extent=[delays[0], delays[-1], plotindeces[-1], 0],
         vmax=2,
-        vmin=-8)
+        vmin=-8,
+        cmap=plt.get_cmap('jet'))
 
     # label colorbar and axes, format axes
     plt.colorbar().set_label("Logarithmic Difference")
     plt.xlabel("Delay [ns]")
-    plt.xlim((-450, 450))
+    plt.xlim((-500, 500))
     plt.ylabel("Baseline Length [m]")
     plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
@@ -820,11 +826,11 @@ def plot_diff(npz_name, path):
         plt.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
         j = plotindeces[i]
 
-    plt.savefig(path + npz_name[:-4] + '.png')
+    plt.savefig(args.path + npz_name[:-4] + '.png')
     plt.clf()
 
 
-def plot_diff_multi(npz_names, path):
+def plot_diff_multi(npz_names, args):
     nplots = len(npz_names)
 
     # Form subplots
@@ -858,7 +864,8 @@ def plot_diff_multi(npz_names, path):
             interpolation='nearest',
             extent=[delays[0], delays[-1], plotindeces[-1], 0],
             vmax=2,
-            vmin=-8)
+            vmin=-8,
+            cmap=plt.get_cmap('jet'))
 
         # Plot center line to easily see peak offset
         ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
@@ -881,7 +888,7 @@ def plot_diff_multi(npz_names, path):
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
 
-    plt.xlim((-450, 450))
+    plt.xlim((-500, 500))
     plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
 
     # X and Y axis labels
@@ -899,11 +906,11 @@ def plot_diff_multi(npz_names, path):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    plt.savefig(path + npz_name + '.png')
+    plt.savefig(args.path + npz_name + '.png')
     plt.clf()
 
 
-def plot_blavg(npz_name, path):
+def plot_blavg(npz_name):
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
     delays = data['delays']
@@ -933,8 +940,8 @@ def plot_blavg(npz_name, path):
             aspect='auto',
             interpolation='nearest',
             extent=[delays[0], delays[-1], time_start, time_end],
-            vmax=-1,
-            vmin=-5)
+            vmax=1,
+            vmin=-8)
 
         horizon = caldata[3][i] / sc.c * 10**9
         x1, y1 = [horizon, horizon], [time_start, time_end]
@@ -947,11 +954,11 @@ def plot_blavg(npz_name, path):
 
     axes[0].set_xlim(-450, 450)
 
-    plt.savefig(path + npz_name[:-4] + '.png')
-    plt.show()
+    plt.savefig(npz_name[:-4] + '.png')
+    plt.clf()
 
 
-def plot_flavors(npz_name, path):
+def plot_flavors(npz_name, args):
     data = np.load(npz_name)
     npz_name = npz_name.split('/')[-1]
     delays = data['delays']
@@ -959,20 +966,13 @@ def plot_flavors(npz_name, path):
     caldata = data['caldata']
     times = data['times']
 
-    if 'SIM' in npz_name:
-        vmax = -2
-        vmin = -12
-    else:
-        vmax = -1
-        vmin = -5
-
     plt.imshow(
         wedgeslices,
         aspect='auto',
         interpolation='nearest',
         extent=[delays[0], delays[-1], len(wedgeslices), 0],
-        vmin=vmin,
-        vmax=vmax)
+        vmax=1,
+        vmin=-8)
 
     plt.colorbar().set_label(r'$\log_{10}({\rm mK}^2)$')
 
@@ -1003,11 +1003,11 @@ def plot_flavors(npz_name, path):
         x2, y2 = [-horizons[j], -horizons[j]], [j, j+1]
         plt.plot(x1, y1, 'w', x2, y2, 'w')
 
-    plt.savefig(path + npz_name[:-4] + '.png')
-    plt.show()
+    plt.savefig(npz_name[:-4] + '.png')
+    plt.clf()
 
 
-def plot_flavors_multi(npz_names, path):
+def plot_flavors_multi(npz_names):
     nplots = len(npz_names)
 
     # Form subplots
@@ -1025,20 +1025,13 @@ def plot_flavors_multi(npz_names, path):
 
         ax.set_title(npz_name.split('.')[3])
 
-        if 'SIM' in npz_name:
-            vmax = -2
-            vmin = -12
-        else:
-            vmax = -1
-            vmin = -5
-
         plot = ax.imshow(
             wedgeslices,
             aspect='auto',
             interpolation='nearest',
             extent=[delays[0], delays[-1], len(wedgeslices), 0],
-            vmin=vmin,
-            vmax=vmax)
+            vmax=1,
+            vmin=-8)
 
         ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
 
@@ -1078,10 +1071,9 @@ def plot_flavors_multi(npz_names, path):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    print(path + npz_name + '.png')
-    plt.savefig(path + npz_name + '.png')
-
-    plt.show()
+    print(npz_name + '.png')
+    plt.savefig(npz_name + '.png')
+    plt.clf()
 
 
 def plot_bltype(npz_name):
@@ -1344,3 +1336,26 @@ def plot_avgs(npz_names, rng):
 
     plt.savefig(name + ".avg_val.png")
     plt.show()
+
+
+# Create Wedge from Pitchfork
+def wedge_delayavg(npz_name, multi=False):
+
+    plot_data = np.load(npz_name)
+    delays, wedgevalues, baselines = plot_data['dlys'], plot_data['cldt'][3], plot_data['cldt'][3]
+    # d_start = plot_data['dlys'][0]
+    # d_end = plot_data['dlys'][-1]
+    split = (len(wedgevalues[0, :])/2)
+
+    wedgevalues2 = np.zeros((len(wedgevalues), len(delays)))
+
+    for baselength in range(len(wedgevalues)):
+        for i in range(split):
+            avg = ((wedgevalues[baselength, (split-1+i)]+wedgevalues[baselength, (split+i)])/2)
+            wedgevalues2[baselength][split-i] = avg
+    delayavg_wedgevalues = wedgevalues2.T.T.T
+    npz_delayavg = (npz_name[:-11] + 'delayavg.npz')
+    np.savez(npz_delayavg, wdgslc=delayavg_wedgevalues, dlys=delays, bls=baselines)
+    # saving to longer arrary fml??? idk
+    print("got here!!!")
+    return npz_delayavg

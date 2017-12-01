@@ -24,7 +24,7 @@ from IPython import embed
 
 parser = argparse.ArgumentParser()
 
-# Main Arguemnts
+# Arguments that are always necessary:
 parser.add_argument('-F',
                     '--filenames',
                     help='Input a list of filenames to be analyzed.',
@@ -38,16 +38,57 @@ parser.add_argument('-P',
                     '--pol',
                     help='Input a comma-delimited list of polatizations to plot.',
                     default='I,Q,U,V')
+
+# Crucial arguments that are frequently needed:
 parser.add_argument('-X',
                     '--ex_ants',
-                    help='Input a comma-delimited list of antennae to exclude from analysis.',
-                    type=str)
-parser.add_argument('-V',
+                    help='Input a comma-delimited list of antennae to exclude from analysis.',)
+parser.add_argument('-R',
+                    '--freq_range',
+                    help='Input a range of frequency channels to use separated by an underscore: "550_650"',
+                    default='0_1023')
+parser.add_argument('-p',
                     '--path',
                     help='Input the path to where you want your files to be saved.',
-                    default='')
+                    default='./')
 
-# Parameters for Changing What is Analyzed
+# Types of pitchforks (only one can be used):
+parser.add_argument('-t',
+                    '--timeavg',
+                    help='Toggle time averaging and baseling averging.',
+                    action='store_true',
+                    default=False)
+parser.add_argument('-b',
+                    '--blavg',
+                    help='Toggle baseline averaging only.',
+                    action='store_true',
+                    default=False)
+parser.add_argument('-f',
+                    '--flavors',
+                    help='Toggle splitting wedgeslices into a per slope per baseline basis.',
+                    action='store_true',
+                    default=False)
+parser.add_argument('-l',
+                    '--bl_type',
+                    help='Toggle bltype and input 1 baseline type.',
+                    default=False,
+                    type=int)
+
+# npz file manipulations:
+parser.add_argument('-c',
+                    '--combine',
+                    help='Combines npz files to represent a longer amount of time in one npz file. Incurs some amount of error.',
+                    action='store_true')
+parser.add_argument('-d',
+                    '--diff',
+                    help='Subtract two visibilities from the nearest-neighbor lst.',
+                    action='store_true')
+parser.add_argument('-D',
+                    '--delay_avg',
+                    help='Form a wedge from a pitchfork.',
+                    default=False)
+
+# Simultaneous analysis arguments:
 parser.add_argument('-S',
                     '--step',
                     help='Toggle file stepping.',
@@ -56,59 +97,18 @@ parser.add_argument('-S',
 parser.add_argument('-A',
                     '--stair',
                     help='Compute npz files for 1 file, then 2 files, then 3 files, ...',
-                    default=False,
-                    action='store_true')
+                    action='store_true',
+                    default=False)
 parser.add_argument('-L',
                     '--load',
                     help='How many processes to run at once.',
-                    type=int,
-                    default=1)
-parser.add_argument('-R',
-                    '--freq_range',
-                    help='Input a range of frequency channels to use separated by an underscore: "550_650"',
-                    default='0_1023')
-parser.add_argument('-D',
-                    '--Difference',
-                    action='store_true')
-
-# Types of Wedges
-# Only One Can Be Used
-parser.add_argument('-t',
-                    '--timeavg',
-                    help='Toggle time averaging.',
-                    default=False,
-                    action='store_true')
-parser.add_argument('-b',
-                    '--blavg',
-                    help='Toggle blavg for stokes.',
-                    default=False,
-                    action='store_true')
-parser.add_argument('-f',
-                    '--flavors',
-                    help='Toggle splitting wedgeslices into a per slope per baseline basis.',
-                    default=False,
-                    action='store_true')
-parser.add_argument('-l',
-                    '--bl_type',
-                    help='Toggle bltype and input 1 baseline type.',
-                    default=False,
+                    default=1,
                     type=int)
 
-# Delay Average (Pitchfork --> Wedge)
-parser.add_argument('-d',
-                    '--delay_avg',
-                    help="sfsdfasdfsf",
-                    default=False,
-                    action="store_true")
-
-# Combine npz files
-parser.add_argument('-c',
-                    '--combine',
-                    action='store_true')
-
-# Specify simulated data
+# Specify simulated data:
 parser.add_argument('-s',
                     '--sim',
+                    help='Specify sim data so that proper naming scheme is upheld.',
                     action='store_true')
 
 args = parser.parse_args()
@@ -129,9 +129,12 @@ class Batch(object):
         self.stair = int()
         self.load = int()
 
-        self.MISSING_TAG_ERR = "You must specify which type of Wedge to create (--timeavg, --blavg, --flavors, --bl_type=X)."
+        self.MISSING_TAG_ERR = "You must specify which type of pitchfork to create (--timeavg, --blavg, --flavors, --bl_type=X)."
         self.stokes_pols = ['I', 'Q', 'U', 'V']
         self.standard_pols = ['xx', 'xy', 'yx', 'yy']
+
+        if self.args.path[-1] != '/':
+            self.args.path += '/'
 
     def format_batch(self):
         self.format_pols()
@@ -508,7 +511,7 @@ class Batch(object):
 
 zen = Batch(args)
 
-if args.Difference:
+if args.diff:
     zen.difference()
     quit()
 elif args.combine:
