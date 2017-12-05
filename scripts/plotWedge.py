@@ -135,7 +135,7 @@ class Graph(object):
                         baselines = []
                     else:
                         baselines = [int(x) for x in self.args.one_D.split(',')]
-                    wu.plot_multi_1D(files, baselines)
+                    wu.plot_multi_1D(files, self.args, baselines)
                 else:
                     raise Exception(self.MISSING_TAG_ERR)
 
