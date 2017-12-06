@@ -613,11 +613,6 @@ def plot_timeavg(npz_name, args):
         plotdata[j:plotindeces[i]] = wedgeslices[i]
         j = plotindeces[i]
 
-    power_axis = r'$\log_{10}({\rm mK}^2)$'
-    plt.xlabel("Delay [ns]")
-    x_extent = (delays[0], delays[-1])
-    factor = 1
-
     if args.abscal:
         plotdata = np.log10((10**plotdata) * args.cosmo)
         power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
@@ -627,15 +622,21 @@ def plot_timeavg(npz_name, args):
         elif args.abscal == 'low':
             factor =  0.000367*1.7
         vmax = 17
-        vmin = 8
-    elif args.sim:
-        vmax = 2
-        vmin = -12
+        vmin = 7
     else:
-        vmax = 1
-        vmin = -8
+        args.abscal = ''
+        power_axis = r'$\log_{10}({\rm mK}^2)$'
+        plt.xlabel("Delay [ns]")
+        factor = 1
+        if args.sim:
+            vmax = 2
+            vmin = -12
+        else:
+            vmax = 1
+            vmin = -8
 
     plt.xlim((-500*factor, 500*factor))
+    x_extent = (delays[0], delays[-1])
 
     plot = plt.imshow(
         plotdata,
@@ -700,9 +701,6 @@ def plot_timeavg_multi(npz_names, args):
             plotdata[j:plotindeces[i]] = wedgeslices[i]
             j = plotindeces[i]
 
-        power_axis = r'$\log_{10}({\rm mK}^2)$'
-        x_extent = (delays[0], delays[-1])
-        factor = 1
 
         if args.abscal:
             plotdata = np.log10((10**plotdata) * args.cosmo)
@@ -713,17 +711,21 @@ def plot_timeavg_multi(npz_names, args):
             elif args.abscal == 'low':
                 factor =  0.000367*1.7
             vmax = 17
-            vmin = 8
-        elif args.sim:
-            f.text(0.5, 0.025, 'Delay [ns]', ha='center')
-            vmax = 2
-            vmin = -12
+            vmin = 7
         else:
+            args.abscal = ''
+            power_axis = r'$\log_{10}({\rm mK}^2)$'
             f.text(0.5, 0.025, 'Delay [ns]', ha='center')
-            vmax = 1
-            vmin = -8
+            factor = 1
+            if args.sim:
+                vmax = 2
+                vmin = -12
+            else:
+                vmax = 1
+                vmin = -8
         
         ax.set_xlim((-500*factor, 500*factor))
+        x_extent = (delays[0], delays[-1])
 
         plot = ax.imshow(
             plotdata,
@@ -770,7 +772,7 @@ def plot_timeavg_multi(npz_names, args):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    plt.savefig(args.path + npz_name + '.png')
+    plt.savefig(args.path + npz_name + args.abscal + '.png')
     plt.clf()
 
 
@@ -1198,7 +1200,7 @@ def plot_1D(npz_name, baselines=[]):
     plt.show()
 
 
-def plot_multi_1D(npz_names, baselines=[]):
+def plot_multi_1D(npz_names, args, baselines=[]):
     """Plots four 1D plots next to each other.
     If baselines is a specified argument (start indexing with baseline lengt #1),
     then only plots the the provided baselines."""
@@ -1220,23 +1222,43 @@ def plot_multi_1D(npz_names, baselines=[]):
 
         # load data, format plotting section
         plot_data = np.load(npz_names[n])
+        wslices = plot_data['wslices']
+
         plt.subplot(G[:, n:n+1])
+        
+        if args.abscal:
+            wslices = np.log10((10**wslices) * args.cosmo)
+            plt.ylabel(r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$')
+            plt.xlabel(r'$k_{\parallel}$ (h/Mpc)')
+            plt.ylim((7, 17))
+            if args.abscal == 'high':
+                factor = 0.000322*1.7
+            elif args.abscal == 'low':
+                factor =  0.000367*1.7
+        else:
+            factor = 1
+            plt.xlabel('Delay (ns)')
+            plt.ylabel('log10((mK)^2)')
+            args.abscal = ''
+            if args.sim:
+                plt.ylim((-12, 2))
+            else:
+                plt.ylim((-8, 1))
+
+        plt.xlim((-500*factor, 500*factor))
+
 
         # plot the data
         for i in baselines:
-            plt.plot(plot_data['delays'], plot_data['wslices'][i], label='bl len '+str(plot_data['caldata'][3][i]))
+            plt.plot(plot_data['delays']*factor, wslices[i], label='bl len '+str(plot_data['caldata'][3][i]))
         if len(baselines) == 1:
-            light_time = plot_data['caldata'][3][baselines[0]]/sc.c*10**9
+            light_time = (plot_data['caldata'][3][baselines[0]]/sc.c*10**9) * factor
             plt.axvline(light_time, color='#d3d3d3', linestyle='--')
             plt.axvline(-1*light_time, color='#d3d3d3', linestyle='--')
         plt.axvline(0, color='#d3d3d3', linestyle='--')
-        plt.xlim((-450, 450))
-        plt.ylim((-8.0, 1.0))
 
         if n == 0:
             plt.legend(loc='upper left')
-        plt.xlabel('Delay (ns)')
-        plt.ylabel('log10((mK)^2)')
         pol = npz_names[n].split('/')[-1].split('.')[3]
         plt.title(pol)
         polorder += pol
@@ -1252,8 +1274,7 @@ def plot_multi_1D(npz_names, baselines=[]):
             blstr += str(bl+1)
 
     plt.tight_layout()
-    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + "multi1D." + blstr + ".png")
-    plt.show()
+    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + args.abscal + "multi1D." + blstr + ".png")
 
 
 # Inside/Outside Averaging
