@@ -162,22 +162,12 @@ class Batch(object):
 
     def format_files(self):
         """Generate the filenames from given files and given polarizations"""
-        if self.args.sim:
-            self.files = {pol: [] for pol in self.file_pols}
-            for file in self.args.filenames:
-                for s_pol in self.standard_pols:
-                    if s_pol in file:
-                        self.files[s_pol].append(file)
-                        break
-        else:
-            for pol in self.file_pols:
-                pol_files = []
-                for file in self.args.filenames:
-                    file_pol = file.split('.')[-3]
-                    pol_file = file.split(file_pol)[0] + pol + file.split(file_pol)[1]
-                    pol_files.append(pol_file)
-
-                self.files[pol] = sorted(list(set(pol_files)))
+        self.files = {pol: [] for pol in self.file_pols}
+        for file in self.args.filenames:
+            for pol in self.standard_pols:
+                if pol in file:
+                    self.files[pol].append(file)
+                    break
 
     def format_exants(self):
         """Takes the input ex_ants and creates a list of integers"""
@@ -348,11 +338,11 @@ class Batch(object):
 
             day1 = [file1[1]]
             day2 = [file2[1]]
-            day = ['+'.join(day1 + day2)]
+            day = ['__'.join(day1 + day2)]
 
             time1 = [file1[2]]
             time2 = [file2[2]]
-            time = ['+'.join(time1 + time2)]
+            time = ['__'.join(time1 + time2)]
 
             ex_ants1 = [file1[4]]
             ex_ants2 = [file2[4]]
