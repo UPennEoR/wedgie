@@ -202,11 +202,10 @@ class Batch(object):
             for pol in self.file_pols:
                 self.files[pol] = self.files[pol][index:index + self.step]
 
-            self.logic()
-            # if (count+1) % self.load:
-            #     multiprocessing.Process(target=self.logic).start()
-            # else:
-            #     self.logic()
+            if (count+1) % self.load:
+                multiprocessing.Process(target=self.logic).start()
+            else:
+                self.logic()
 
             self.files = deepcopy(files_copy)
 
@@ -221,11 +220,10 @@ class Batch(object):
             for pol in self.file_pols:
                 self.files[pol] = self.files[pol][0:index]
 
-            self.logic()
-            # if (count+1) % self.load:
-            #     multiprocessing.Process(target=self.logic).start()
-            # else:
-            #     self.logic()
+            if (count+1) % self.load:
+                multiprocessing.Process(target=self.logic).start()
+            else:
+                self.logic()
 
             self.files = deepcopy(files_copy)
 

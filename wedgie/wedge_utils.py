@@ -75,8 +75,8 @@ class Wedge(object):
         file_end = self.files[self.files.keys()[0]][-1].split('/')[-1].split('.')
 
         day = [str(self.info['times'][0]).split('.')[0]]
-        JDT1 = [str(self.info['times'][0]).split('.')[1]]
-        JDT2 = [str(self.info['times'][-1]).split('.')[1]]
+        JDT1 = [str(self.info['times'][0] - np.floor(self.info['times'][0]))[2:7]]
+        JDT2 = [str(self.info['times'][-1] - np.floor(self.info['times'][-1]))[2:7]]
         JDT = ['_{files}_'.format(files=len(self.files[self.files.keys()[0]])).join(JDT1 + JDT2)]
         pol = [self.pol]
         tag = [tag]
