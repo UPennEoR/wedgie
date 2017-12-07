@@ -42,7 +42,7 @@ parser.add_argument('-P',
 # Crucial arguments that are frequently needed:
 parser.add_argument('-X',
                     '--ex_ants',
-                    help='Input a comma-delimited list of antennae to exclude from analysis.',)
+                    help='Input a comma-delimited list of antennae to exclude from analysis.')
 parser.add_argument('-R',
                     '--freq_range',
                     help='Input a range of frequency channels to use separated by an underscore: "550_650"',
@@ -415,7 +415,10 @@ class Batch(object):
                 delays = data1['delays']
                 caldata = data1['caldata']
             else:
-                raise Exception('delays and/or caldata arrays are not the same.')
+                print 'Warning: delays and/or caldata arrays are not the same.'
+                delays = data1['delays']
+                caldata = data1['caldata']
+
             
             # Find overlap in lst
             indices1 = np.where(np.logical_and(times1[2] >= times2[2][0], times1[2] <= times2[2][-1]))[0]
@@ -464,6 +467,7 @@ class Batch(object):
             if ex_ants1 == ex_ants2:
                 ex_ants = ex_ants1
             else:
+                ex_ants = ex_ants1
                 print("Your files aren't the same (ex_ants).")
 
             freq_range1 = [file1[5]]
