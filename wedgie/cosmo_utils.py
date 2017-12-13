@@ -72,11 +72,10 @@ def eta2kpl(etas,z):
 def freq2kpl(freqs,fold=False):
     """
     Convert an array of frequencies to k_parallel in h/Mpc.
-    Assumes redshift based on central frequency, and equally-spaced frequencies.
-    
+    freqs need to be in GIGAHERTZ.
     fold=True returns the positive-half of the k_parallel array.
     """
-    cen_fq = gu.findMiddle(freqs)
+    cen_fq = np.median(freqs)
     z = f2z(cen_fq)
     etas = f2eta(freqs)
     kpl = np.fft.fftshift(eta2kpl(etas,z))
