@@ -654,8 +654,24 @@ def plot_timeavg(npz_name, args):
 
     plt.colorbar().set_label(power_axis)
     
-    plt.ylabel("Baseline Length [m]")
-    plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
+    #format y axis markings
+    midindices = []
+    for i in range(len(plotindeces)):
+        if i == 0:
+            midindices.append(plotindeces[i] / 2)
+        else:
+            midindices.append((plotindeces[i] + plotindeces[i-1]) / 2)
+    if args.abscal:
+        scaling_factor = 1
+        if args.abscal == 'low':
+            scaling_factor = .00046
+        if args.abscal == 'high':
+            scaling_factor = .00064
+        plt.yticks(midindices, [round(scaling_factor*n,3) for n in caldata[3]])
+        plt.ylabel(r'$k_{\perp}$ (h/Mpc)')
+    else:
+        plt.yticks(midindices, [round(n, 1) for n in caldata[3]])
+        plt.ylabel("Baseline Length [m]")
 
     # set titles
     plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_name.split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
@@ -767,10 +783,24 @@ def plot_timeavg_multi(npz_names, args):
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
 
-    plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
-
-    # X and Y axis labels
-    f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')
+    #format y axis markings
+    midindices = []
+    for i in range(len(plotindeces)):
+        if i == 0:
+            midindices.append(plotindeces[i] / 2)
+        else:
+            midindices.append((plotindeces[i] + plotindeces[i-1]) / 2)
+    if args.abscal:
+        scaling_factor = 1
+        if args.abscal == 'low':
+            scaling_factor = .00046
+        if args.abscal == 'high':
+            scaling_factor = .00064
+        plt.yticks(midindices, [round(scaling_factor*n,3) for n in caldata[3]])
+        f.text(0.06, 0.5, r'$k_{\perp}$ (h/Mpc)', va='center', rotation='vertical')
+    else:
+        plt.yticks(midindices, [round(n, 1) for n in caldata[3]])
+        f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')
 
     # Colorbar
     cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
@@ -1186,7 +1216,7 @@ def plot_1D(npz_name, baselines=[]):
 
     plt.subplot(G[:, 0:4])
     for i in baselines:
-        plt.plot(plot_data['delays'], plot_data['wslices'][i], label='bl len '+str(plot_data['caldata'][3][i]))
+        plt.plot(plot_data['delays'], plot_data['wslices'][i], label=str(np.round(plot_data['caldata'][3][i],1))+' m')
     plt.xlabel('Delay (ns)')
     plt.ylabel('log10((mK)^2)')
     plt.legend(loc='upper left')
@@ -1266,7 +1296,7 @@ def plot_multi_1D(npz_names, args, baselines=[]):
 
         # plot the data
         for i in baselines:
-            plt.plot(plot_data['delays']*factor, wslices[i], label=str(np.round(plot_data['caldata'][3][i], 1)) + 'm')
+            plt.plot(plot_data['delays']*factor, wslices[i], label=str(np.round(plot_data['caldata'][3][i], 1)) + ' m')
         if len(baselines) == 1:
             light_time = (plot_data['caldata'][3][baselines[0]]/sc.c*10**9) * factor
             plt.axvline(light_time, color='#d3d3d3', linestyle='--')
