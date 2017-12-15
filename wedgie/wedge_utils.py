@@ -723,7 +723,6 @@ def plot_timeavg_multi(npz_names, args):
             plotdata[j:plotindeces[i]] = wedgeslices[i]
             j = plotindeces[i]
 
-
         if args.abscal:
             plotdata = np.log10((10**plotdata) * args.cosmo)
             power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
@@ -900,14 +899,33 @@ def plot_diff_multi(npz_names, args):
             plotdata[j:plotindeces[i]] = wedgeslices[i]
             j = plotindeces[i]
 
+        if args.abscal or args.sim:
+            power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
+            f.text(0.5, 0.025, r'$k_{\parallel}$ (h/Mpc)', ha='center')
+            if args.abscal == 'high':
+                factor = 0.000322*1.7
+            elif args.abscal == 'low':
+                factor =  0.000367*1.7
+            vmax = 17
+            vmin = 7
+        else:
+            power_axis = r'$\log_{10}({\rm mK}^2)$'
+            f.text(0.5, 0.025, 'Delay [ns]', ha='center')
+            factor = 1
+            vmax = 1
+            vmin = -8
+
+        ax.set_xlim((-500*factor, 500*factor))
+        x_extent = (delays[0], delays[-1])
+
         # plot the data
         plot = ax.imshow(
             plotdata,
             aspect='auto',
             interpolation='nearest',
-            extent=[delays[0], delays[-1], plotindeces[-1], 0],
-            vmax=2,
-            vmin=-8,
+            extent=[x_extent[0]*factor, x_extent[-1]*factor, plotindeces[-1], 0],
+            vmax=vmax,
+            vmin=vmin,
             cmap=plt.get_cmap('jet'))
 
         # Plot center line to easily see peak offset
@@ -919,24 +937,36 @@ def plot_diff_multi(npz_names, args):
             horizons.append(length / sc.c * 10**9)
         j = 0
         for i in range(len(horizons)):
-            x1, y1 = [horizons[i], horizons[i]], [j, plotindeces[i]]
-            x2, y2 = [-horizons[i], -horizons[i]], [j, plotindeces[i]]
+            x1, y1 = [horizons[i]*factor, horizons[i]*factor], [j, plotindeces[i]]
+            x2, y2 = [-horizons[i]*factor, -horizons[i]*factor], [j, plotindeces[i]]
             ax.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
             j = plotindeces[i]
 
         del npz_name
 
     plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
+    
+    #format y axis markings
+    midindices = []
+    for i in range(len(plotindeces)):
+        if i == 0:
+            midindices.append(plotindeces[i] / 2)
+        else:
+            midindices.append((plotindeces[i] + plotindeces[i-1]) / 2)
+    if args.abscal:
+        scaling_factor = 1
+        if args.abscal == 'low':
+            scaling_factor = .00046
+        if args.abscal == 'high':
+            scaling_factor = .00064
+        plt.yticks(midindices, [round(scaling_factor*n,3) for n in caldata[3]])
+        f.text(0.06, 0.5, r'$k_{\perp}$ (h/Mpc)', va='center', rotation='vertical')
+    else:
+        plt.yticks(midindices, [round(n, 1) for n in caldata[3]])
+        f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
-
-    plt.xlim((-500, 500))
-    plt.yticks(plotindeces, [round(n, 1) for n in caldata[3]])
-
-    # X and Y axis labels
-    f.text(0.5, 0.025, 'Delay [ns]', ha='center')
-    f.text(0.075, 0.5, 'Baseline Length [m]', va='center', rotation='vertical')
 
     # Colorbar
     cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])

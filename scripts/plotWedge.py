@@ -88,10 +88,11 @@ class Graph(object):
         self.path = args.path
 
         self.MISSING_TAG_ERR = "You must specify which type of Wedge to plot."
-
+        
+        self.args.cosmo = 1.
+        
         if self.args.abscal is None:
             self.args.abscal = ''
-            self.args.cosmo = 1.
         elif self.args.abscal.lower() == 'low':
             self.args.cosmo = 1.6e16
         elif self.args.abscal.lower() == 'high':
@@ -101,7 +102,6 @@ class Graph(object):
 
         if self.args.sim is None:
             self.args.sim = ''
-            self.args.cosmo = 1.
         elif self.args.sim.lower() == 'low':
             self.args.cosmo = 16.2
         elif self.args.sim.lower() == 'high':

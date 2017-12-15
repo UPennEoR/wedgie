@@ -473,7 +473,8 @@ class Batch(object):
             if freq_range1 == freq_range2:
                 freq_range = freq_range1
             else:
-                raise Exception("Your files aren't the same (freq_range).")
+                freq_range = freq_range1
+                print("Your files aren't the same (freq_range).")
 
             HH1 = [file1[6]]
             HH2 = [file2[6]]
