@@ -623,17 +623,23 @@ def plot_timeavg(npz_name, args):
             factor =  0.000367*1.7
         vmax = 17
         vmin = 7
+    elif args.sim:
+        plotdata += args.cosmo
+        power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
+        plt.xlabel(r'$k_{\parallel}$ (h/Mpc)')
+        if args.sim == 'high':
+            factor = 0.000322*1.7
+        elif args.sim == 'low':
+            factor = 0.000367*1.7
+        vmax = 17
+        vmin = 7
     else:
         args.abscal = ''
         power_axis = r'$\log_{10}({\rm mK}^2)$'
         plt.xlabel("Delay [ns]")
         factor = 1
-        if args.sim:
-            vmax = 2
-            vmin = -12
-        else:
-            vmax = 1
-            vmin = -8
+        vmax = 1
+        vmin = -8
 
     plt.xlim((-500*factor, 500*factor))
     x_extent = (delays[0], delays[-1])
@@ -712,17 +718,22 @@ def plot_timeavg_multi(npz_names, args):
                 factor =  0.000367*1.7
             vmax = 17
             vmin = 7
+        elif args.sim:
+            plotdata += args.cosmo
+            power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
+            f.text(0.5, 0.025, r'$k_{\parallel}$ (h/Mpc)', ha='center')
+            if args.sim == 'high':
+                factor = 0.000322*1.7
+            elif args. sim == 'low':
+                factor = 0.000367*1.7
+            vmax = 17
+            vmin = 7
         else:
-            args.abscal = ''
             power_axis = r'$\log_{10}({\rm mK}^2)$'
             f.text(0.5, 0.025, 'Delay [ns]', ha='center')
             factor = 1
-            if args.sim:
-                vmax = 2
-                vmin = -12
-            else:
-                vmax = 1
-                vmin = -8
+            vmax = 1
+            vmin = -8
         
         ax.set_xlim((-500*factor, 500*factor))
         x_extent = (delays[0], delays[-1])
@@ -772,7 +783,7 @@ def plot_timeavg_multi(npz_names, args):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    plt.savefig(args.path + npz_name + args.abscal + '.png')
+    plt.savefig(args.path + npz_name + args.abscal + args.sim + '.png')
     plt.clf()
 
 
@@ -1235,22 +1246,27 @@ def plot_multi_1D(npz_names, args, baselines=[]):
                 factor = 0.000322*1.7
             elif args.abscal == 'low':
                 factor =  0.000367*1.7
+        elif args.sim:
+            wslices += args.cosmo
+            plt.ylabel(r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$')
+            plt.xlabel(r'$k_{\parallel}$ (h/Mpc)')
+            plt.ylim((0, 17))
+            if args.sim == 'high':
+                factor = 0.000322*1.7
+            elif args.im == 'low':
+                factor =  0.000367*1.7
         else:
             factor = 1
             plt.xlabel('Delay (ns)')
             plt.ylabel('log10((mK)^2)')
-            args.abscal = ''
-            if args.sim:
-                plt.ylim((-12, 2))
-            else:
-                plt.ylim((-8, 1))
+            plt.ylim((-10, 2))
 
         plt.xlim((-500*factor, 500*factor))
 
 
         # plot the data
         for i in baselines:
-            plt.plot(plot_data['delays']*factor, wslices[i], label='bl len '+str(plot_data['caldata'][3][i]))
+            plt.plot(plot_data['delays']*factor, wslices[i], label=str(np.round(plot_data['caldata'][3][i], 1)) + 'm')
         if len(baselines) == 1:
             light_time = (plot_data['caldata'][3][baselines[0]]/sc.c*10**9) * factor
             plt.axvline(light_time, color='#d3d3d3', linestyle='--')
@@ -1264,7 +1280,7 @@ def plot_multi_1D(npz_names, args, baselines=[]):
         polorder += pol
 
     npz_name = npz_names[0].split('/')[-1]
-    plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2])
+    # plt.suptitle(npz_name.split('.')[1]+'.'+npz_name.split('.')[2])
 
     if len(baselines) == len(plot_data['wslices']):
         blstr = 'allbls'
@@ -1274,7 +1290,7 @@ def plot_multi_1D(npz_names, args, baselines=[]):
             blstr += str(bl+1)
 
     plt.tight_layout()
-    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + args.abscal + "multi1D." + blstr + ".png")
+    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + args.abscal + args.sim + "multi1D." + blstr + ".png")
 
 
 # Inside/Outside Averaging

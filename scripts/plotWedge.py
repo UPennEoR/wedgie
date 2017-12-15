@@ -75,8 +75,9 @@ parser.add_argument('-A',
                     default=None)
 parser.add_argument('-s',
                     '--sim',
-                    action='store_true')
-
+                    action='store',
+                    choices=[None, 'low', 'high'],
+                    default=None)
 args = parser.parse_args()
 
 
@@ -89,6 +90,7 @@ class Graph(object):
         self.MISSING_TAG_ERR = "You must specify which type of Wedge to plot."
 
         if self.args.abscal is None:
+            self.args.abscal = ''
             self.args.cosmo = 1.
         elif self.args.abscal.lower() == 'low':
             self.args.cosmo = 1.6e16
@@ -96,6 +98,17 @@ class Graph(object):
             self.args.cosmo = 3.6e15
         else:
             raise Exception("Check the argument you passed for -A / --abscal")
+
+        if self.args.sim is None:
+            self.args.sim = ''
+            self.args.cosmo = 1.
+        elif self.args.sim.lower() == 'low':
+            self.args.cosmo = 16.2
+        elif self.args.sim.lower() == 'high':
+            self.args.cosmo = 15.55
+        else:
+            raise Exception("Check the argument you passed for -s / --sim")
+
 
     def logic(self):
         if self.args.single:
