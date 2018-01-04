@@ -777,7 +777,7 @@ def plot_timeavg_multi(npz_names, args):
 
         del npz_name
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
+    # plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
@@ -812,7 +812,7 @@ def plot_timeavg_multi(npz_names, args):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    plt.savefig(args.path + npz_name + args.abscal + args.sim + '.png')
+    plt.savefig(args.path + npz_name + args.abscal + args.sim + '.pdf')
     plt.clf()
 
 
@@ -900,20 +900,27 @@ def plot_diff_multi(npz_names, args):
             j = plotindeces[i]
 
         if args.abscal or args.sim:
-            power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
+            # cbar_label = "Logarithmic Difference"
+            cbar_label = ""
             f.text(0.5, 0.025, r'$k_{\parallel}$ (h/Mpc)', ha='center')
             if args.abscal == 'high':
                 factor = 0.000322*1.7
             elif args.abscal == 'low':
                 factor =  0.000367*1.7
-            vmax = 17
-            vmin = 7
+            vmax = 2
+            vmin = -8
         else:
-            power_axis = r'$\log_{10}({\rm mK}^2)$'
+            # cbar_label = "Logarithmic Difference"
             f.text(0.5, 0.025, 'Delay [ns]', ha='center')
             factor = 1
-            vmax = 1
+            vmax = 2
             vmin = -8
+
+        if args.wdiff:
+             # %npz_name.split('.')[1].split('__')[-1]
+            # cbar_label = r"$\log_{10}{\frac{\rm 56\ Hour\ Average}{7\ Hour\ Average}}$"
+            vmax = 1.5
+            vmin = -1.5
 
         ax.set_xlim((-500*factor, 500*factor))
         x_extent = (delays[0], delays[-1])
@@ -926,7 +933,7 @@ def plot_diff_multi(npz_names, args):
             extent=[x_extent[0]*factor, x_extent[-1]*factor, plotindeces[-1], 0],
             vmax=vmax,
             vmin=vmin,
-            cmap=plt.get_cmap('jet'))
+            cmap=plt.get_cmap('RdBu'))
 
         # Plot center line to easily see peak offset
         ax.axvline(x=0, color='k', linestyle='--', linewidth=0.5)
@@ -939,12 +946,12 @@ def plot_diff_multi(npz_names, args):
         for i in range(len(horizons)):
             x1, y1 = [horizons[i]*factor, horizons[i]*factor], [j, plotindeces[i]]
             x2, y2 = [-horizons[i]*factor, -horizons[i]*factor], [j, plotindeces[i]]
-            ax.plot(x1, y1, x2, y2, color='white', linestyle='--', linewidth=.75)
+            ax.plot(x1, y1, x2, y2, color='black', linestyle='--', linewidth=.75)
             j = plotindeces[i]
 
         del npz_name
 
-    plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
+    # plt.suptitle("JD: {JD}; LST {start} to {end}".format(JD=npz_names[0].split('/')[-1].split('.')[1], start=times[1][0][:-6], end=times[1][-1][:-6]))
     
     #format y axis markings
     midindices = []
@@ -967,11 +974,13 @@ def plot_diff_multi(npz_names, args):
 
     # Smooshes the plots together
     f.subplots_adjust(wspace=0)
+    if args.wdiff:
+        f.subplots_adjust(wspace=0.1)
 
     # Colorbar
     cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
     cbar = f.colorbar(plot, cax=cbar_ax)
-    cbar.set_label("Logarithmic Difference")
+    cbar.set_label(cbar_label)
 
     # Naming and saving
     npz_names = [npz_name.split('/')[-1] for npz_name in npz_names]
@@ -979,7 +988,7 @@ def plot_diff_multi(npz_names, args):
     pols = ["".join(pols)]
     f1, f2 = npz_names[0].split('/')[-1].split('.')[:3], npz_names[0].split('/')[-1].split('.')[4:-1]
     npz_name = ".".join(f1 + pols + f2)
-    plt.savefig(args.path + npz_name + '.png')
+    plt.savefig(args.path + npz_name + '.pdf')
     plt.clf()
 
 
@@ -1310,7 +1319,7 @@ def plot_multi_1D(npz_names, args, baselines=[]):
             wslices += args.cosmo
             plt.ylabel(r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$')
             plt.xlabel(r'$k_{\parallel}$ (h/Mpc)')
-            plt.ylim((0, 17))
+            plt.ylim((7, 17))
             if args.sim == 'high':
                 factor = 0.000322*1.7
             elif args.im == 'low':
@@ -1350,7 +1359,7 @@ def plot_multi_1D(npz_names, args, baselines=[]):
             blstr += str(bl+1)
 
     plt.tight_layout()
-    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + args.abscal + args.sim + "multi1D." + blstr + ".png")
+    plt.savefig(npz_name.split(polorder[0])[0]+polorder+npz_name.split(polorder[0])[-1][:-3] + args.abscal + args.sim + "multi1D." + blstr + ".pdf")
 
 
 # Inside/Outside Averaging

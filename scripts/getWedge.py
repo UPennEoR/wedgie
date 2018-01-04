@@ -81,7 +81,11 @@ parser.add_argument('-c',
                     action='store_true')
 parser.add_argument('-d',
                     '--diff',
-                    help='Subtract two visibilities from the nearest-neighbor lst.',
+                    help='Subtract two power spectra from the nearest-neighbor lst.',
+                    action='store_true')
+parser.add_argument('-w',
+                    '--wdiff',
+                    help='Subtract two wedgeslices.',
                     action='store_true')
 parser.add_argument('-D',
                     '--delay_avg',
@@ -128,6 +132,14 @@ class Batch(object):
         self.step = int()
         self.stair = int()
         self.load = int()
+
+
+        self.pol = str()
+        self.caldata = list()
+        self.wedgeslices = list()
+        self.cwedgeslices = list()
+        self.delays = list()
+        self.times = list()
 
         self.MISSING_TAG_ERR = "You must specify which type of pitchfork to create (--timeavg, --blavg, --flavors, --bl_type=X)."
         self.stokes_pols = ['I', 'Q', 'U', 'V']
@@ -307,84 +319,32 @@ class Batch(object):
         for pol in self.pols:
 
             file_0 = self.files[pol][0]
-            with np.load(file_0)  as data_0:
-                pol = data_0['pol'].tolist()
-                caldata = data_0['caldata'].tolist()
+            with np.load(file_0) as data_0:
+                self.pol = data_0['pol'].tolist()
+                self.caldata = data_0['caldata'].tolist()
                 cwslices = data_0['cwslices']
-                delays = data_0['delays']
-                times = data_0['times']
+                self.delays = data_0['delays']
+                self.times = data_0['times']
 
             # Cycle through the rest of the files in the polarization
             for npz in self.files[pol][1:]:
                 with np.load(npz) as data:
-                    cwslices = np.concatenate((cwslices, data['cwslices']), axis=1)
-                    times = np.concatenate((times, data['times']), axis=1)
+                    self.cwedgeslices = np.concatenate((cwslices, data['cwslices']), axis=1)
+                    self.times = np.concatenate((self.times, data['times']), axis=1)
 
             # Take the log of the fftshift of the abs of the time average of the cwedgeslices (to make wedgeslices)
-            wslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(cwslices, axis=1)), axes=1))
+            self.wedgeslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(cwslices, axis=1)), axes=1))
 
             # Naming and Saving
-            file1 = self.files[pol][0].split('/')[-1].split('.')
-            file2 = self.files[pol][-1].split('/')[-1].split('.')
+            self.file1 = self.files[pol][0].split('/')[-1].split('.')
+            self.file2 = self.files[pol][-1].split('/')[-1].split('.')
 
-            zen1 = [file1[0]]
-            zen2 = [file2[0]]
-            if zen1 == zen2:
-                zen = zen1
-            else:
-                raise Exception("Your files aren't the same (zen).")
-
-            day1 = [file1[1]]
-            day2 = [file2[1]]
-            day = ['__'.join(day1 + day2)]
-
-            time1 = [file1[2]]
-            time2 = [file2[2]]
-            time = ['__'.join(time1 + time2)]
-
-            ex_ants1 = [file1[4]]
-            ex_ants2 = [file2[4]]
-            if ex_ants1 == ex_ants2:
-                ex_ants = ex_ants1
-            else:
-                raise Exception("Your files aren't the same (ex_ants).")
-
-            freq_range1 = [file1[5]]
-            freq_range2 = [file2[5]]
-            if freq_range1 == freq_range2:
-                freq_range = freq_range1
-            else:
-                raise Exception("Your files aren't the same (freq_range).")
-
-            HH1 = [file1[6]]
-            HH2 = [file2[6]]
-            if HH1 == HH2:
-                HH = HH1
-            else:
-                raise Exception("Your files aren't the same (HH).")
-
-            ext1 = [file1[7]]
-            ext2 = [file2[7]]
-            if ext1 == ext2:
-                ext = ext1
-            else:
-                raise Exception("Your files aren't the same (ext).")
-
-            npz_name = '.'.join(zen + day + time + [pol] + ex_ants + freq_range + HH + ext + ['timeavg'])
-
-            np.savez(
-                npz_name,
-                pol=pol,
-                caldata=caldata,
-                wslices=wslices,
-                cwslices=cwslices,
-                delays=delays,
-                times=times)
+            self.save('timeavg')
 
             for npz in self.files[pol]:
                 os.remove(npz)
                 
-    def difference(self):
+    def difference(self, pspec=False, wedge=False):
         self.format_pols()
 
         # This sets up the format of self.files to be {pol: [file1, file2, ...]}
@@ -396,116 +356,139 @@ class Batch(object):
 
             self.files[pol] = pol_files
 
-        for pol in self.pols:
+        for self.pol in self.pols:
 
-            if len(self.files[pol]) > 2:
+            if len(self.files[self.pol]) > 2:
                 raise Exception('Can only take the difference of two wedges. Provide only two files.')
 
-            file1 = self.files[pol][0]
+            file1 = self.files[self.pol][0]
             data1 = np.load(file1)
             cwedge1, times1 = data1['cwslices'], data1['times'][:, 1::2]
 
-            file2 = self.files[pol][1]
+            file2 = self.files[self.pol][1]
             data2 = np.load(file2)
             cwedge2, times2 = data2['cwslices'], data2['times'][:, 1::2]
 
             if np.all(data1['delays'] == data2['delays']) and np.all(data1['caldata'] == data2['caldata']):
-                delays = data1['delays']
-                caldata = data1['caldata']
+                self.delays = data1['delays']
+                self.caldata = data1['caldata']
             else:
                 print 'Warning: delays and/or caldata arrays are not the same.'
-                delays = data1['delays']
-                caldata = data1['caldata']
+                self.delays = data1['delays']
+                self.caldata = data1['caldata']
 
-            
-            # Find overlap in lst
-            indices1 = np.where(np.logical_and(times1[2] >= times2[2][0], times1[2] <= times2[2][-1]))[0]
-            indices2 = np.where(np.logical_and(times2[2] >= times1[2][0], times2[2] <= times1[2][-1]))[0]
+            if pspec:
+                # Find overlap in lst
+                indices1 = np.where(np.logical_and(times1[2].split('.')[1] >= times2[2][0].split('.')[1], times1[2].split('.')[1] <= times2[2][-1].split('.')[1]))[0]
+                indices2 = np.where(np.logical_and(times2[2].split('.')[1] >= times1[2][0].split('.')[1], times2[2].split('.')[1] <= times1[2][-1].split('.')[1]))[0]
 
-            # Create times array with overlapping lst range.
-            times1 = np.take(times1, indices1, axis=1)
-            times2 = np.take(times2, indices2, axis=1)
-            times = times1[...]
+                # Create times array with overlapping lst range.
+                times1 = np.take(times1, indices1, axis=1)
+                times2 = np.take(times2, indices2, axis=1)
+                self.times = times1[...]
 
-            # Make cwedge arrays represent only data from overlapping lst.
-            cwedge1 = np.take(cwedge1, indices1, axis=1)
-            cwedge2 = np.take(cwedge2, indices2, axis=1)
+                # Make cwedge arrays represent only data from overlapping lst.
+                cwedge1 = np.take(cwedge1, indices1, axis=1)
+                cwedge2 = np.take(cwedge2, indices2, axis=1)
 
-            # Create cwedgeslices array to return information before time averaging.
-            cwedgeslices = cwedge1 - cwedge2
+                # Create cwedgeslices array to return information before time averaging.
+                self.cwedgeslices = cwedge1 - cwedge2
 
-            # Average the data over time axis.
-            wedge1 = np.nanmean(cwedge1, axis=1)
-            wedge2 = np.nanmean(cwedge2, axis=1)
+                # Average the data over time axis.
+                wedge1 = np.nanmean(cwedge1, axis=1)
+                wedge2 = np.nanmean(cwedge2, axis=1)
 
-            # Create wedgeslices array to be plotted.
-            wedgeslices = np.fft.fftshift(np.abs(wedge1 - wedge2), axes=1)
-            wedgeslices = np.where(wedgeslices > 0, np.log10(wedgeslices), -100)
+                # Create wedgeslices array to be plotted.
+                self.wedgeslices = np.fft.fftshift(np.abs(wedge1 - wedge2), axes=1)
+                self.wedgeslices = np.where(self.wedgeslices > 0, np.log10(self.wedgeslices), -100)
 
-            file1 = file1.split('/')[-1].split('.')
-            file2 = file2.split('/')[-1].split('.')
+                self.file1 = file1.split('/')[-1].split('.')
+                self.file2 = file2.split('/')[-1].split('.')
 
-            zen1 = [file1[0]]
-            zen2 = [file2[0]]
-            if zen1 == zen2:
-                zen = zen1
-            else:
-                raise Exception("Your files aren't the same (zen).")
+                self.save('pspec_diff')
 
-            day1 = [file1[1]]
-            day2 = [file2[1]]
-            day = ['--'.join(day1 + day2)]
+            elif wedge:
+                self.cwedgeslices = np.unique(np.concatenate((cwedge1, cwedge2), axis=1), axis=1)
+                self.times = np.unique(np.concatenate((times1, times2), axis=1), axis=1)
+                # wedge1 = np.nanmean(cwedge1, axis=1)
+                # wedge2 = np.nanmean(cwedge2, axis=1)
+                # self.wedgeslices = wedge1 = wedge2
+                # self.wedgeslices = np.log10(np.fft.fftshift(np.abs(wedge1 - wedge2), axes=1))
 
-            time1 = [file1[2]]
-            time2 = [file2[2]]
-            time = ['--'.join(time1 + time2)]
+                self.wedgeslices = data1['wslices'] - data2['wslices']
+                
+                self.file1 = file1.split('/')[-1].split('.')
+                self.file2 = file2.split('/')[-1].split('.')
 
-            ex_ants1 = [file1[4]]
-            ex_ants2 = [file2[4]]
-            if ex_ants1 == ex_ants2:
-                ex_ants = ex_ants1
-            else:
-                ex_ants = ex_ants1
-                print("Your files aren't the same (ex_ants).")
+                self.save('wedge_diff')
 
-            freq_range1 = [file1[5]]
-            freq_range2 = [file2[5]]
-            if freq_range1 == freq_range2:
-                freq_range = freq_range1
-            else:
-                freq_range = freq_range1
-                print("Your files aren't the same (freq_range).")
+    def save(self, tag):
+        """A really bad function to save diffs and combines."""
+        zen1 = [self.file1[0]]
+        zen2 = [self.file2[0]]
+        if zen1 == zen2:
+            zen = zen1
+        else:
+            print("Your files aren't the same (zen).")
+            zen = ['__'.join(zen1 + zen2)]
 
-            HH1 = [file1[6]]
-            HH2 = [file2[6]]
-            if HH1 == HH2:
-                HH = HH1
-            else:
-                raise Exception("Your files aren't the same (HH).")
+        day1 = [self.file1[1]]
+        day2 = [self.file2[1]]
+        day = ['__'.join(day1 + day2)]
 
-            ext1 = [file1[7]]
-            ext2 = [file2[7]]
-            if ext1 == ext2:
-                ext = ext1
-            else:
-                ext = ['--'.join(ext1 + ext2)]
+        time1 = [self.file1[2]]
+        time2 = [self.file2[2]]
+        time = ['__'.join(time1 + time2)]
 
-            npz_name = '.'.join(zen + day + time + [pol] + ex_ants + freq_range + HH + ext + ['diff'])
+        ex_ants1 = [self.file1[4]]
+        ex_ants2 = [self.file2[4]]
+        if ex_ants1 == ex_ants2:
+            ex_ants = ex_ants1
+        else:
+            print("Your files aren't the same (ex_ants).")
+            ex_ants = ['__'.join(ex_ants1 + ex_ants2)]
 
-            np.savez(
-                npz_name,
-                pol=pol,
-                caldata=caldata,
-                wslices=wedgeslices,
-                cwslices=cwedgeslices,
-                delays=delays,
-                times=times)
+        freq_range1 = [self.file1[5]]
+        freq_range2 = [self.file2[5]]
+        if freq_range1 == freq_range2:
+            freq_range = freq_range1
+        else:
+            print("Your files aren't the same (freq_range).")
+            freq_range = ['__'.join(freq_range1 + freq_range2)]
 
+        HH1 = [self.file1[6]]
+        HH2 = [self.file2[6]]
+        if HH1 == HH2:
+            HH = HH1
+        else:
+            print("Your files aren't the same (HH).")
+            HH = ['__'.join(HH1 + HH2)]
+
+        ext1 = [self.file1[7]]
+        ext2 = [self.file2[7]]
+        if ext1 == ext2:
+            ext = ext1
+        else:
+            ext = ['__'.join(ext1 + ext2)]
+
+        npz_name = '.'.join(zen + day + time + [self.pol] + ex_ants + freq_range + HH + ext + [tag])
+
+        np.savez(
+            npz_name,
+            pol=self.pol,
+            caldata=self.caldata,
+            wslices=self.wedgeslices,
+            cwslices=self.cwedgeslices,
+            delays=self.delays,
+            times=self.times)
 
 zen = Batch(args)
 
 if args.diff:
-    zen.difference()
+    zen.difference(pspec=True)
+    quit()
+elif args.wdiff:
+    zen.difference(wedge=True)
     quit()
 elif args.combine:
     zen.combine()

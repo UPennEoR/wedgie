@@ -51,6 +51,9 @@ parser.add_argument('-l',
 parser.add_argument('-d',
                     '--diff',
                     action='store_true')
+parser.add_argument('-w',
+                    '--wdiff',
+                    action='store_true')
 parser.add_argument('-v',
                     '--avg',
                     help='Plots average value inside and outside wedge per files analyzed.',
