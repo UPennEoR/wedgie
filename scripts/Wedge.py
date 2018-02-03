@@ -100,6 +100,7 @@ class Zeus(object):
         self.inputfiles = args.inputfiles
         self.keyword = args.keyword
         self.CLEAN = args.CLEAN
+        
         if args.datatype:
             if args.freqrange == 'high':
                 self.cosmo = 15.55
@@ -108,14 +109,17 @@ class Zeus(object):
             else:
                 self.cosmo = 1.
             self.datatype = args.datatype
+
         if args.calfile:
             self.calfile = os.path.splitext(os.path.basename(args.calfile))[0]
         else:
             self.calfile = None
+
         if args.exants:
             self.exants = sorted([int(ant) for ant in args.exants.split(',')])
         else:
             self.exants = list()
+
         if args.freqrange:
             if args.freqrange == 'high':
                 args.freqrange = '580_680'
@@ -170,6 +174,8 @@ class Zeus(object):
 
         files_filepath = os.listdir(self.filepath)
         files_keyword = sorted([file for file in files_filepath if self.keyword in file])
+        if len(files_keyword) == 0:
+            raise Exception("There are no files with keyword '{}' in file path '{}'.".format(self.keyword, self.filepath))
 
         # Cycle through the MIRIAD files in the directory and grab their info
         for file in files_keyword:
@@ -237,72 +243,73 @@ class Zeus(object):
                 continue
 
             for index, file in enumerate(self.catalog[pol]):
-                print index
+                key = self.catalog[pol][index].keys()[0]
                 if self.JDRange:
-                    indices = np.where(np.logical_and(file[file.keys()[0]]['JD'] > JDRange_start,
-                                                      file[file.keys()[0]]['JD'] < JDRange_stop))[0]
-
+                    indices = np.where(np.logical_and(self.catalog[pol][index][key]['JD'] > JDRange_start,
+                                                      self.catalog[pol][index][key]['JD'] < JDRange_stop))[0]
                 elif self.LSTrRange:
-                    indices = np.where(np.logical_and(file[file.keys()[0]]['LSTr'] > LSTrRange_start,
-                                                      file[file.keys()[0]]['LSTr'] < LSTrRange_stop))[0]
-
+                    indices = np.where(np.logical_and(self.catalog[pol][index][key]['LSTr'] > LSTrRange_start,
+                                                      self.catalog[pol][index][key]['LSTr'] < LSTrRange_stop))[0]
                 elif self.LSTRange:
-                    indices = np.where(np.logical_and(file[file.keys()[0]]['LSTr'] > LSTRange_start,
-                                                      file[file.keys()[0]]['LSTr'] < LSTRange_stop))[0]
+                    indices = np.where(np.logical_and(self.catalog[pol][index][key]['LSTr'] > LSTRange_start,
+                                                      self.catalog[pol][index][key]['LSTr'] < LSTRange_stop))[0]
+                else:
+                    raise Exception("You must indicate which type of range you would like to use (JDRange, LSTrRange, LSTRange).")
 
                 if len(indices):
                     if pol not in self.files:
-                        self.files[pol] = [file.keys()[0]]
+                        self.files[pol] = [key]
                     else:
-                        self.files[pol].append(file.keys()[0])
+                        self.files[pol].append(key)
                 else:
-                    # del self.catalog[pol][index]
+                    del self.catalog[pol][index][key]
+
+            self.catalog[pol] = [x for x in self.catalog[pol] if len(x) != 0]
 
         embed()
 
+        # # Remove files from catalog that don't have a pol specified by args.pol
+        # # Necessary for all types of file finding
+        # row_index = 0
+        # for pol in self.catalog[:, 1]:
+        #     if not np.any(pol in self.pol_dipole):
+        #         self.catalog = np.delete(self.catalog, row_index, axis=0)
+        #         row_index -= 1
+        #     row_index += 1
 
-        # Remove files from catalog that don't have a pol specified by args.pol
-        # Necessary for all types of file finding
-        row_index = 0
-        for pol in self.catalog[:, 1]:
-            if not np.any(pol in self.pol_dipole):
-                self.catalog = np.delete(self.catalog, row_index, axis=0)
-                row_index -= 1
-            row_index += 1
+        # # Check if the user wants to find files based on JD, LST (hours), or LST (radians)
+        # if self.JDRange or self.LSTRange or self.LSTrRange:
+        #     # Find indices of files in catalog that are within the specified range.
+        #     if self.JDRange:
+        #         JDRange_start, JDRange_stop = [float(x) for x in self.JDRange.split('_')]
+        #         indices = np.where(np.logical_and(self.catalog[:, 2].astype(float) >= JDRange_start,
+        #                                           self.catalog[:, 2].astype(float) <= JDRange_stop))[0]
+        #     elif self.LSTrRange:
+        #         LSTrRange_start, LSTrRange_stop = [float(x) for x in self.LSTrRange.split('_')]
+        #         indices = np.where(np.logical_and(self.catalog[:, 3].astype(float) >= LSTrRange_start,
+        #                                           self.catalog[:, 3].astype(float) <= LSTrRange_stop))[0]
+        #     self.catalog = np.take(self.catalog, indices, axis=0)
 
-        # Check if the user wants to find files based on JD, LST (hours), or LST (radians)
-        if self.JDRange or self.LSTRange or self.LSTrRange:
-            # Find indices of files in catalog that are within the specified range.
-            if self.JDRange:
-                JDRange_start, JDRange_stop = [float(x) for x in self.JDRange.split('_')]
-                indices = np.where(np.logical_and(self.catalog[:, 2].astype(float) >= JDRange_start,
-                                                  self.catalog[:, 2].astype(float) <= JDRange_stop))[0]
-            elif self.LSTrRange:
-                LSTrRange_start, LSTrRange_stop = [float(x) for x in self.LSTrRange.split('_')]
-                indices = np.where(np.logical_and(self.catalog[:, 3].astype(float) >= LSTrRange_start,
-                                                  self.catalog[:, 3].astype(float) <= LSTrRange_stop))[0]
-            self.catalog = np.take(self.catalog, indices, axis=0)
+        # # Check if the user wants to input their own files directly
+        # elif self.inputfiles:
+        #     # Take just the basename of the given files
+        #     # (This necessitates not including the ending '/' when inputting files)
+        #     self.files_basename = [os.path.basename(file) for file in self.inputfiles]
 
-        # Check if the user wants to input their own files directly
-        elif self.inputfiles:
-            # Take just the basename of the given files
-            # (This necessitates not including the ending '/' when inputting files)
-            self.files_basename = [os.path.basename(file) for file in self.inputfiles]
+        #     # Remove files from the catalog that are not in args.inputfiles
+        #     row_index = 0
+        #     for file in self.catalog[:, 0]:
+        #         if not np.any(file in self.files_basename):
+        #             self.catalog = np.delete(self.catalog, row_index, axis=0)
+        #             row_index -= 1
+        #         row_index += 1
 
-            # Remove files from the catalog that are not in args.inputfiles
-            row_index = 0
-            for file in self.catalog[:, 0]:
-                if not np.any(file in self.files_basename):
-                    self.catalog = np.delete(self.catalog, row_index, axis=0)
-                    row_index -= 1
-                row_index += 1
-
-        # Organizes the good files into self.files, a dictionary: {pol: [file1, file2, ...], ...}
-        files = self.catalog[:, :2]
-        self.files = {pol: [] for pol in self.pol_dipole}
-        for row in files:
-            if row[0] not in self.files[row[1]]:
-                self.files[row[1]].append(row[0])
+        # # Organizes the good files into self.files, a dictionary: {pol: [file1, file2, ...], ...}
+        # files = self.catalog[:, :2]
+        # self.files = {pol: [] for pol in self.pol_dipole}
+        # for row in files:
+        #     if row[0] not in self.files[row[1]]:
+        #         self.files[row[1]].append(row[0])
 
     def format_pols(self):
         """Format the polarizations, e.g.: translating from IQUV to xx,xy,yx,yy"""
