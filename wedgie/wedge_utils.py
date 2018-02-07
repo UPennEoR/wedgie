@@ -749,8 +749,11 @@ def plot_timeavg_multi(npz_names, args):
             factor = 1
             vmax = 1
             vmin = -8
+
+        factor *= 1
+        ax.set_xticks([-0.4, -0.2, 0.0, 0.2, 0.4])
         
-        ax.set_xlim((-500*factor, 500*factor))
+        ax.set_xlim((-500*factor*2, 500*factor*2))
         x_extent = (delays[0], delays[-1])
 
         plot = ax.imshow(
@@ -1330,12 +1333,14 @@ def plot_multi_1D(npz_names, args, baselines=[]):
             plt.ylabel('log10((mK)^2)')
             plt.ylim((-10, 2))
 
-        plt.xlim((-500*factor, 500*factor))
+        factor *= 1
+        plt.xticks([-0.2, -0.1, 0.0, 0.1, 0.2])
+        plt.xlim((-500*factor*2, 500*factor*2))
 
 
         # plot the data
         for i in baselines:
-            plt.plot(plot_data['delays']*factor, wslices[i], label=str(np.round(plot_data['caldata'][3][i], 1)) + ' m')
+            plt.plot(plot_data['delays']*factor , wslices[i], label=str(np.round(plot_data['caldata'][3][i], 1)) + ' m')
         if len(baselines) == 1:
             light_time = (plot_data['caldata'][3][baselines[0]]/sc.c*10**9) * factor
             plt.axvline(light_time, color='#d3d3d3', linestyle='--')
