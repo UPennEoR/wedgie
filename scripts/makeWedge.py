@@ -10,13 +10,16 @@ Paul La Plante <plaplant_at_sas.upenn.edu>
 """
 
 import numpy as np
-import sys
+import scipy.constants as sc
+
+import os
 
 from pyuvdata import UVData
 import pyuvdata.utils as uvutils
 import aipy
 import hera_cal
 import ephem
+import matplotlib.pyplot as plt
 
 
 # Interactive Development
@@ -26,6 +29,8 @@ class Eris(object):
     def __init__(self, Zeus, pol):
         self.Zeus = Zeus
         self.pol = pol
+
+        self.npz_name = str()
 
         self.caldata = dict()
 
@@ -43,9 +48,108 @@ class Eris(object):
 
         self.cwedgeslices = list()
         self.wedgeslices = list()
-        self.lst = np.array([], dtype=ephem.Angle)
-        self.times = list()
         self.delays = list()
+
+    def name_npz(self):
+        file0 = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][0].keys()[0]
+        filef = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][-1].keys()[0]
+        JDT0 = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][0][file0]['JD'][0]
+        JDTf = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][-1][filef]['JD'][0]
+        JD = int(JDT0)
+
+        JDT0 = [str(JDT0 - JD)[2:7]]
+        JDTf = [str(JDTf - JD)[2:7]]
+        JD = [str(JD)]
+        JDT = ['_{files}_'.format(files=len(self.Zeus.files[self.Zeus.files.keys()[0]])).join(JDT0 + JDTf)]
+        pol = [self.pol]
+        freqrange = ['{start}_{end}'.format(start=self.Zeus.freqrange[0], end=self.Zeus.freqrange[1])]
+        tag = [self.Zeus.tag]
+        zen = ['zen']
+        HH = ['HH']
+
+        if self.Zeus.exants:
+            exants = [str(ant) for ant in self.Zeus.exants]
+            exants = ['_'.join(exants)]
+        else:
+            exants = ['None']
+
+        if self.Zeus.datatype == 'sim':
+            ext = ['SIM']
+        else:
+            ext = [file0.split('.')[-1]]
+
+        npz_name = zen + JD + JDT + pol + exants + freqrange + HH + ext + tag + ['npz']
+        npz_name = '.'.join(npz_name)
+        self.npz_name = os.path.join(self.Zeus.path, npz_name)
+
+        print(self.npz_name)
+
+    def load_MIRIAD(self):
+        """Formats data and flags array for a specific polarization, also apply flags."""
+        # Check what type of polarization was specified
+        if self.Zeus.pol_type == 'standard':
+            self.uvd = UVData()
+            self.uvd.read_miriad(self.Zeus.files[self.pol])
+        elif self.pol == 'I' or self.pol == 'Q':
+            self.uvd = UVData()
+            self.uvd.read_miriad(self.Zeus.files['xx'])
+            self.uvd2 = UVData()
+            self.uvd2.read_miriad(self.Zeus.files['yy'])
+        elif self.pol == 'U' or self.pol == 'V':
+            self.uvd = UVData()
+            self.uvd.read_miriad(self.Zeus.files['xy'])
+            self.uvd2 = UVData()
+            self.uvd2.read_miriad(self.Zeus.files['yx'])
+
+        self.calculate_caldata()
+
+        # Get metadata and convert freqs array from Hz -> GHz
+        self.info['freqs'] = self.uvd.freq_array[0, :] / 1e9
+        self.info['times'] = np.unique(self.uvd.time_array)
+
+        # Extract and format data and flags arrays
+        for key, d in self.uvd.antpairpol_iter():
+            # Ignore auto-correlation
+            if key[0] == key[1]:
+                continue
+            ind1, ind2, ipol = self.uvd._key2inds(key)
+            for ind in [ind1, ind2]:
+                if len(ind) == 0:
+                    continue
+
+                antkey = key[:2]
+                if self.Zeus.pol_type == 'standard':
+                    f = self.uvd.flag_array[ind, 0, :, ipol]
+                    polkey = key[2].lower()
+                    self.data[antkey] = {polkey: d}
+                    self.flags[antkey] = {polkey: f}
+                elif self.Zeus.pol_type == 'stokes':
+                    f = self.uvd.flag_array[ind, 0, :, 0]
+                    d2 = self.uvd2.data_array[ind, 0, :, 0]
+                    f2 = self.uvd2.flag_array[ind, 0, :, 0]
+
+                    if self.pol == 'I':
+                        self.data[antkey] = {'I': d + d2}
+                        self.flags[antkey] = {'I': f + f2}
+                    elif self.pol == 'Q':
+                        self.data[antkey] = {'Q': d - d2}
+                        self.flags[antkey] = {'Q': f + f2}
+                    elif self.pol == 'U':
+                        self.data[antkey] = {'U': d + d2}
+                        self.flags[antkey] = {'U': f + f2}
+                    elif self.pol == 'V':
+                        self.data[antkey] = {'V': -1j*d + 1j*d2}
+                        self.flags[antkey] = {'V': f + f2}
+
+        del self.uvd2
+
+        # Apply flags to data by looking for where the flags array is true, and zeroing the corresponding data elements.
+        for pair in self.caldata['pairs']:
+            self.data[pair][self.pol] = np.where(self.flags[pair][self.pol], 0. + 0.*1j, self.data[pair][self.pol])
+
+        for i in self.flags:
+            for j in self.flags[i]:
+                    self.flags[i][j] = np.logical_not(self.flags[i][j]).astype(int)
 
     def calculate_caldata(self):
         """Returns a dictionary of baseline lengths and the corresponding pairs.
@@ -55,7 +159,7 @@ class Eris(object):
         Requires cal file to be in PYTHONPATH."""
         if self.Zeus.calfile:
             try:
-                print('Reading calfile: %s ...' %self.Zeus.calfile)
+                print('Reading calfile: %s...' %self.Zeus.calfile)
                 exec('import %s as cal' %self.Zeus.calfile, globals(), locals())
                 antennae = cal.prms['antpos_ideal']
             except ImportError:
@@ -142,69 +246,33 @@ class Eris(object):
                 slopedict[baseline][slope].append(pair)
 
         self.caldata = {'antdict': antdict, 'slopedict': slopedict, 'pairs': pairs, 'baselines': baselines, 'slopes': slopes}
+    
+    def pitchfork(self):
+        self.info['freqs'] = self.info['freqs'][self.Zeus.freqrange[0]: self.Zeus.freqrange[1]]
+        for antpair in self.data.keys():
+            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.Zeus.freqrange[0]: self.Zeus.freqrange[1]]
+            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.Zeus.freqrange[0]: self.Zeus.freqrange[1]]
 
-    def load_MIRIAD(self):
-        """Formats data and flags array for a specific polarization, also apply flags."""
-        # Check what type of polarization was specified
-        if self.Zeus.pol_type == 'standard':
-            self.uvd = UVData()
-            self.uvd.read_miriad(self.Zeus.files[self.pol])
-        elif self.pol == 'I' or self.pol == 'Q':
-            self.uvd = UVData()
-            self.uvd.read_miriad(self.Zeus.files['xx'])
-            self.uvd2 = UVData()
-            self.uvd2.read_miriad(self.Zeus.files['yy'])
-        elif self.pol == 'U' or self.pol == 'V':
-            self.uvd = UVData()
-            self.uvd.read_miriad(self.Zeus.files['xy'])
-            self.uvd2 = UVData()
-            self.uvd2.read_miriad(self.Zeus.files['yx'])
+        ntimes = len(self.info['times'])
+        nchan = len(self.info['freqs'])
 
-        self.calculate_caldata()
+        if self.Zeus.calfile:
+            self.aa = hera_cal.utils.get_aa_from_calfile(self.info['freqs'], self.Zeus.calfile)
+        else:
+            self.aa = hera_cal.utils.get_aa_from_uv(self.uvd, self.info['freqs'])
+        self.aa.set_active_pol(self.pol)
 
-        # Get metadata and convert freqs array from Hz -> GHz
-        self.info['freqs'] = self.uvd.freq_array[0, :] / 1e9
-        self.info['times'] = np.unique(self.uvd.time_array)
+        for baseline in sorted(self.caldata['antdict']):
+            self.vis_sq_bl = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
+            for antpair in sorted(self.caldata['antdict'][baseline]):
+                self.vis_sq_antpair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
 
-        # Extract and format data and flags arrays
-        for key, d in self.uvd.antpairpol_iter():
-            # Ignore auto-correlation
-            if key[0] == key[1]:
-                continue
-            ind1, ind2, ipol = self.uvd._key2inds(key)
-            for ind in [ind1, ind2]:
-                if len(ind) == 0:
-                    continue
-
-                antkey = key[:2]
-                if self.Zeus.pol_type == 'standard':
-                    f = self.uvd.flag_array[ind, 0, :, ipol]
-                    polkey = key[2].lower()
-                    self.data[antkey] = {polkey: d}
-                    self.flags[antkey] = {polkey: f}
-                elif self.Zeus.pol_type == 'stokes':
-                    f = self.uvd.flag_array[ind, 0, :, 0]
-                    d2 = self.uvd2.data_array[ind, 0, :, 0]
-                    f2 = self.uvd2.flag_array[ind, 0, :, 0]
-
-                    if self.pol == 'I':
-                        self.data[antkey] = {'I': d + d2}
-                        self.flags[antkey] = {'I': f + f2}
-                    elif self.pol == 'Q':
-                        self.data[antkey] = {'Q': d - d2}
-                        self.flags[antkey] = {'Q': f + f2}
-                    elif self.pol == 'U':
-                        self.data[antkey] = {'U': d + d2}
-                        self.flags[antkey] = {'U': f + f2}
-                    elif self.pol == 'V':
-                        self.data[antkey] = {'V': -1j*d + 1j*d2}
-                        self.flags[antkey] = {'V': f + f2}
-
-        del self.uvd2
-
-        # Apply flags to data by looking for where the flags array is true, and zeroing the corresponding data elements.
-        for pair in self.caldata['pairs']:
-            self.data[pair][self.pol] = np.where(self.flags[pair][self.pol], 0. + 0.*1j, self.data[pair][self.pol])
+                self.fft_clean_phase(antpair, ntimes, self.Zeus.CLEAN)
+                
+                self.vis_sq_bl += self.vis_sq_antpair
+            self.vis_sq_bl /= len(self.caldata['antdict'][baseline])
+            self.cwedgeslices.append(self.vis_sq_bl)
+            self.wedgeslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(self.cwedgeslices, axis=1)), axes=1))
 
     def fft_clean_phase(self, antpair, ntimes, CLEAN):
         # FFT
@@ -226,10 +294,7 @@ class Eris(object):
                 old_zenith = zenith
             time = self.info['times'][i]
             self.aa.set_jultime(time)
-
             lst = self.aa.sidereal_time()
-            self.lst = np.append(self.lst, lst)
-
             zenith = aipy.phs.RadioFixedBody(lst, self.aa.lat)
             zenith.compute(self.aa)
 
@@ -239,76 +304,189 @@ class Eris(object):
                 v2 = fft_2Ddata[i, :] * phase_correction
                 self.vis_sq_antpair[i // 2, :] = np.conj(v1) * v2
 
-    def pitchfork(self):
-
-        self.info['freqs'] = self.info['freqs'][self.Zeus.freqrange[0]: self.Zeus.freqrange[1]]
-        for antpair in self.data.keys():
-            self.data[antpair][self.pol] = self.data[antpair][self.pol][:, self.Zeus.freqrange[0]: self.Zeus.freqrange[1]]
-            self.flags[antpair][self.pol] = self.flags[antpair][self.pol][:, self.Zeus.freqrange[0]: self.Zeus.freqrange[1]]
-
-        ntimes = len(self.info['times'])
-        nchan = len(self.info['freqs'])
-
-        if self.Zeus.calfile:
-            self.aa = hera_cal.utils.get_aa_from_calfile(self.info['freqs'], self.Zeus.calfile)
-        else:
-            self.aa = hera_cal.utils.get_aa_from_uv(uv, self.info['freqs'])
-        self.aa.set_active_pol(self.pol)
-
-        for baseline in sorted(self.caldata['antdict']):
-            self.vis_sq_bl = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
-            for antpair in sorted(self.caldata['antdict'][baseline]):
-                self.vis_sq_antpair = np.zeros((ntimes // 2, nchan), dtype=np.complex128)
-
-                self.fft_clean_phase(antpair, ntimes, self.Zeus.CLEAN)
-                
-                self.vis_sq_bl += self.vis_sq_antpair
-            self.vis_sq_bl /= len(self.caldata['antdict'][baseline])
-            self.cwedgeslices.append(self.vis_sq_bl)
-            self.wedgeslices = np.log10(np.fft.fftshift(np.abs(np.nanmean(self.cwedgeslices, axis=1)), axes=1))
-
     def save(self):
-
-        self.times = np.vstack((self.lst, self.info['times']))
         channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
         num_bins = len(self.info['freqs'])
         self.delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
 
         np.savez(self.npz_name,
-                 Wedge=self)
+                 Zeus=self.Zeus,
+                 wslices=self.wedgeslices,
+                 cwslices=self.cwedgeslices,
+                 caldata=self.caldata,
+                 pol=self.pol,
+                 freqs=self.info['freqs'],
+                 delays=self.delays)
 
+class Ares(object):
+    def __init__(self, Zeus):
+        self.Zeus = Zeus
 
-    def name_npz(self):
-        embed()
-        file_start = self.files[self.files.keys()[0]][0].split('/')[-1].split('.')
-        file_end = self.files[self.files.keys()[0]][-1].split('/')[-1].split('.')
+        self.tag_wedge = 'pf'
 
-        day = [str(self.info['times'][0]).split('.')[0]]
-        JDT1 = [str(self.info['times'][0] - np.floor(self.info['times'][0]))[2:7]]
-        JDT2 = [str(self.info['times'][-1] - np.floor(self.info['times'][-1]))[2:7]]
-        JDT = ['_{files}_'.format(files=len(self.files[self.files.keys()[0]])).join(JDT1 + JDT2)]
-        pol = [self.pol]
-        tag = [tag]
-        freq_range = ['{start}_{end}'.format(start=self.freq_range[0], end=self.freq_range[1])]
-
-        if self.ex_ants:
-            ex_ants = [str(ant) for ant in self.ex_ants]
-            ex_ants = ["_".join(ex_ants)]
+        if self.Zeus.datatype:                
+            plotdata += self.Zeus.cosmo
+            power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$' 
+            f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$ ', fontsize=14, ha='center')
+            f.text(0.06, 0.5, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=14, va='center', rotation='vertical')
+            ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
+            vmin, vmax = 7, 17
+            if self.fileZeus.freqrange == [580, 680]:
+                xfactor, yfactor = 5.474e-4, 6.4e-4
+            elif self.fileZeus.freqrange == [200, 300]:
+                xfactor, yfactor = 6.239e-4, 4.6e-4
+            self.tag_data = 'cosmo'
         else:
-            ex_ants = ["None"]
+            power_axis = r'$\log_{10}({\rm mK}^2)$'
+            f.text(0.5, 0.025, 'Delay [ns]', fontsize=14, ha='center')
+            f.text(0.075, 0.5, 'Baseline Length [m]', fontsize=14, va='center', rotation='vertical')
+            ax.set_xticks([-400, -200, 0, 200, 400])
+            plt.yticks(k_perp_midindices, [n for n in caldata['baselines']])
+            vmin, vmax = -8, 1
+            xfactor, yfactor = 1., 1.
+            self.tag_data = 'std'
 
-        if self.args.sim:
-            zen = ['zen']
-            HH = ['HH']
+    def horizons(self):
+        horizons = []
+        for length in caldata['baselines']:
+            horizons.append(length / sc.c * 10**9)
+        j = 0
+        for i in range(len(horizons)):
+            x1, y1 = [horizons[i]*xfactor, horizons[i]*xfactor], [j, k_perp_indices[i]]
+            x2, y2 = [-horizons[i]*xfactor, -horizons[i]*xfactor], [j, k_perp_indices[i]]
+            ax.plot(x1, y1, x2, y2, color='#ffffff', linestyle='--', linewidth=1)
+            j = k_perp_indices[i]
+
+    def k_perp_indices(self):
+        k_perp_indices = [int(i*10) for i in caldata['baselines']]
+        plotdata = np.zeros((k_perp_indices[-1], wedgeslices.shape[-1]), dtype=np.float64)
+        j = 0
+        for i in range(len(k_perp_indices)):
+            plotdata[j:k_perp_indices[i]] = wedgeslices[i]
+            j = k_perp_indices[i]
+
+        k_perp_midindices = []
+        for i in range(len(k_perp_indices)):
+            if i == 0:
+                k_perp_midindices.append(k_perp_indices[i] / 2.)
+            else:
+                k_perp_midindices.append((k_perp_indices[i] + k_perp_indices[i-1]) / 2.)
+
+    def plot(self):
+        nplots = len(self.Zeus.inputfiles)
+        f, axes = plt.subplots(1, nplots, sharex=True, sharey=True, figsize=(20, 10))
+        if nplots == 1:
+            axes = [axes]
+        f.subplots_adjust(wspace=0)
+        self.pols = []
+        
+        for i, ax in enumerate(axes):
+            file0 = self.Zeus.inputfiles[i]
+            data = np.load(file0)
+            self.pols.append(data['pol'].tolist())
+            self.fileZeus = data['Zeus'].tolist()
+
+            wedgeslices = data['wslices']
+            delays = data['delays']
+            caldata = data['caldata'].tolist()
+
+            k_perp_indices = [int(i*10) for i in caldata['baselines']]
+            plotdata = np.zeros((k_perp_indices[-1], wedgeslices.shape[-1]), dtype=np.float64)
+            j = 0
+            for i in range(len(k_perp_indices)):
+                plotdata[j:k_perp_indices[i]] = wedgeslices[i]
+                j = k_perp_indices[i]
+
+            k_perp_midindices = []
+            for i in range(len(k_perp_indices)):
+                if i == 0:
+                    k_perp_midindices.append(k_perp_indices[i] / 2.)
+                else:
+                    k_perp_midindices.append((k_perp_indices[i] + k_perp_indices[i-1]) / 2.)
+
+            ax.set_title(data['pol'])
+
+            if self.Zeus.datatype:                
+                plotdata += self.Zeus.cosmo
+                power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$' 
+                f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$ ', fontsize=14, ha='center')
+                f.text(0.06, 0.5, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=14, va='center', rotation='vertical')
+                ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
+                vmin, vmax = 7, 17
+                if self.fileZeus.freqrange == [580, 680]:
+                    xfactor, yfactor = 5.474e-4, 6.4e-4
+                elif self.fileZeus.freqrange == [200, 300]:
+                    xfactor, yfactor = 6.239e-4, 4.6e-4
+                self.tag_data = 'cosmo'
+            else:
+                power_axis = r'$\log_{10}({\rm mK}^2)$'
+                f.text(0.5, 0.025, 'Delay [ns]', fontsize=14, ha='center')
+                f.text(0.075, 0.5, 'Baseline Length [m]', fontsize=14, va='center', rotation='vertical')
+                ax.set_xticks([-400, -200, 0, 200, 400])
+                plt.yticks(k_perp_midindices, [n for n in caldata['baselines']])
+                vmin, vmax = -8, 1
+                xfactor, yfactor = 1., 1.
+                self.tag_data = 'std'
+
+            plt.yticks(k_perp_midindices, [np.round(yfactor * n, 3) for n in caldata['baselines']])
+            ax.set_xlim((-500*xfactor, 500*xfactor))
+            ax.tick_params(axis='both', direction='inout')
+
+            plot = ax.imshow(
+                plotdata,
+                aspect='auto',
+                interpolation='nearest',
+                extent=[delays[0]*xfactor, delays[-1]*xfactor, k_perp_indices[-1], 0],
+                vmax=vmax,
+                vmin=vmin)
+            ax.axvline(x=0, color='#000000', linestyle='--', linewidth=1)
+
+            horizons = []
+            for length in caldata['baselines']:
+                horizons.append(length / sc.c * 10**9)
+            j = 0
+            for i in range(len(horizons)):
+                x1, y1 = [horizons[i]*xfactor, horizons[i]*xfactor], [j, k_perp_indices[i]]
+                x2, y2 = [-horizons[i]*xfactor, -horizons[i]*xfactor], [j, k_perp_indices[i]]
+                ax.plot(x1, y1, x2, y2, color='#ffffff', linestyle='--', linewidth=1)
+                j = k_perp_indices[i]
+
+        cbar_ax = f.add_axes([0.9125, 0.25, 0.025, 0.5])
+        cbar = f.colorbar(plot, cax=cbar_ax)
+        cbar.set_label(power_axis, fontsize=14, ha='center')
+
+        self.name_plot()
+        plt.savefig(self.plot_name)
+
+    def name_plot(self):
+        file0 = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][0].keys()[0]
+        filef = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][-1].keys()[0]
+        JDT0 = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][0][file0]['JD'][0]
+        JDTf = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][-1][filef]['JD'][0]
+        JD = int(JDT0)
+
+        JDT0 = [str(JDT0 - JD)[2:7]]
+        JDTf = [str(JDTf - JD)[2:7]]
+        JD = [str(JD)]
+        JDT = ['_{files}_'.format(files=len(self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]])).join(JDT0 + JDTf)]
+        pol = [''.join(self.pols)]
+        freqrange = ['{start}_{end}'.format(start=self.fileZeus.freqrange[0], end=self.fileZeus.freqrange[1])]
+        tag = ['_'.join([self.tag_wedge] + [self.Zeus.tag] + [self.tag_data])]
+
+        zen = ['zen']
+        HH = ['HH']
+
+        if self.fileZeus.exants:
+            exants = [str(ant) for ant in self.fileZeus.exants]
+            exants = ['_'.join(exants)]
+        else:
+            exants = ['None']
+
+        if self.Zeus.datatype == 'sim':
             ext = ['SIM']
         else:
-            zen = [file_start[0]]
-            HH = [file_start[4]]
-            ext = [file_start[-1]]
+            ext = [file0.split('.')[-1]]
 
-        npz_name = zen + day + JDT + pol + ex_ants + freq_range + HH + ext + tag
-        npz_name = '.'.join(npz_name)
-        self.npz_name = self.args.path + npz_name
-
-        print(self.npz_name)
-
+        self.plot_name = zen + JD + JDT + pol + exants + freqrange + HH + ext + tag + ['pdf']
+        self.plot_name = '.'.join(self.plot_name)
+        self.plot_name = os.path.join(self.Zeus.path, self.plot_name)

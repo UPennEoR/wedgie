@@ -60,7 +60,8 @@ parser.add_argument("-P",
 
 parser.add_argument("-X",
                     "--exants",
-                    help="Input a comma-delimited list of antennae to exclude from analysis.")
+                    help="Input a comma-delimited list of antennae to exclude from analysis.",
+                    default="81,22,43,80")
 
 parser.add_argument("-C",
                     "--calfile",
@@ -71,6 +72,15 @@ parser.add_argument("-R",
                     help="Designate with frequency band to analyze.",
                     default='high')
 
+parser.add_argument("--blavg",
+                    help="Toggle baseline averaging only.")
+parser.add_argument("--flavors",
+                    help="Toggle splitting wedgeslices into a per slope, per baseline basis.",
+                    action="store_true")
+parser.add_argument("--BaselineNum",
+                    help="Input one baseline type (1-8 for H0C).",
+                    type=int)
+
 parser.add_argument("-k",
                     "--keyword",
                     help="Designate which file type (by any keyword in the files) you wish to catalog. (e.g.: '.uvcRK', '2457548')")
@@ -78,6 +88,11 @@ parser.add_argument("-D",
                     "--datatype",
                     help="Designate abscal or sim data",
                     choices=["abscal", "sim"])
+
+parser.add_argument("-p",
+                    "--path",
+                    help="Enter the path where you want save the files.",
+                    default=".")
 
 parser.add_argument("--CLEAN",
                     help="Designate the CLEAN tolerance.",
@@ -100,7 +115,7 @@ class Zeus(object):
         self.inputfiles = args.inputfiles
         self.keyword = args.keyword
         self.CLEAN = args.CLEAN
-        
+
         if args.datatype:
             if args.freqrange == 'high':
                 self.cosmo = 15.55
@@ -108,7 +123,7 @@ class Zeus(object):
                 self.cosmo = 16.2
             else:
                 self.cosmo = 1.
-            self.datatype = args.datatype
+        self.datatype = args.datatype
 
         if args.calfile:
             self.calfile = os.path.splitext(os.path.basename(args.calfile))[0]
@@ -127,8 +142,19 @@ class Zeus(object):
                 args.freqrange = '200_300'
             self.freqrange = [int(freq) for freq in args.freqrange.split('_')]
 
+        if args.blavg:
+            self.tag = 'blavg'
+        elif args.flavors:
+            self.tag = 'flavors'
+        elif args.BaselineNum:
+            self.tag = 'blnum{}'.format(args.BaselineNum)
+        else:
+            self.tag = 'timeavg'
+
         # Copy of the initial working directory
         self.cwd = os.getcwd()
+
+        self.path = os.path.abspath(args.path)
 
         # Polarization specific class attributes
         self.pol_dipole = str()
@@ -159,6 +185,12 @@ class Zeus(object):
                 eris.name_npz()
                 eris.load_MIRIAD()
                 eris.pitchfork()
+                eris.save()
+
+        if self.filetype == 'npz':
+            ares = mW.Ares(self)
+            ares.plot()
+
 
         elif self.filetype == 'catalog':
             self.catalog_directory()
@@ -194,31 +226,6 @@ class Zeus(object):
 
         np.savez(os.path.join(self.filepath, 'catalog.npz'), cat=catalog)
 
-        # """Catalogs the MIRIAD files in a directory and looks for each file's polarization, JD, and LST,
-        # and saves that information in an npz file called 'catalog.npz'."""
-        # catalog = np.array([[], [], [], [], []])
-
-        # files_filepath = os.listdir(self.filepath)
-        # files_keyword = sorted([file for file in files_filepath if self.keyword in file])
-
-        # """Maybe include a check here with os.path.splitext()"""
-
-        # # Cycle through the MIRIAD files in the directory and grab their info
-        # uv = UVData()
-        # for file in files_keyword:
-        #     uv.read_miriad(os.path.join(self.filepath, file))
-        #     Ntimes = uv.Ntimes
-        #     pol_file = uv.get_pols()[0].lower()
-        #     array_lstr = np.unique(uv.lst_array)
-        #     array_lst = np.array([str(ephem.hours(lstr)) for lstr in array_lstr])
-        #     array_jd = np.unique(uv.time_array)
-        #     array_file = np.array([file] * Ntimes)
-        #     array_pol = np.array([pol_file] * Ntimes)
-
-        #     file_array = np.array((array_file, array_pol, array_jd.astype(float), array_lstr.astype(float), array_lst.astype(str)))
-        #     catalog = np.concatenate((catalog, file_array), axis=1)
-        # np.savez(os.path.join(self.filepath, 'catalog.npz'), cat=catalog.T)
-
     def find_files(self):
         """Properly format the given files specified directly or by JD, LST (hours (coming soon)), or LST (radiams)."""
         # Change directory to the directory with catalog.npz
@@ -236,6 +243,8 @@ class Zeus(object):
             LSTrRange_start, LSTrRange_stop = [float(x) for x in self.LSTrRange.split('_')]
         elif self.LSTRange:
             LSTRange_start, LSTRange_stop = [ephem.hours(x) for x in self.LSTRange.split('_')]
+        else:
+            raise Exception("You must indicate which type of range you would like to use (JDRange, LSTrRange, LSTRange).")
 
         for pol in self.STANDARD_POLS:
             if (pol not in self.pol_dipole) and (pol in self.catalog):
@@ -266,51 +275,6 @@ class Zeus(object):
 
             self.catalog[pol] = [x for x in self.catalog[pol] if len(x) != 0]
 
-        embed()
-
-        # # Remove files from catalog that don't have a pol specified by args.pol
-        # # Necessary for all types of file finding
-        # row_index = 0
-        # for pol in self.catalog[:, 1]:
-        #     if not np.any(pol in self.pol_dipole):
-        #         self.catalog = np.delete(self.catalog, row_index, axis=0)
-        #         row_index -= 1
-        #     row_index += 1
-
-        # # Check if the user wants to find files based on JD, LST (hours), or LST (radians)
-        # if self.JDRange or self.LSTRange or self.LSTrRange:
-        #     # Find indices of files in catalog that are within the specified range.
-        #     if self.JDRange:
-        #         JDRange_start, JDRange_stop = [float(x) for x in self.JDRange.split('_')]
-        #         indices = np.where(np.logical_and(self.catalog[:, 2].astype(float) >= JDRange_start,
-        #                                           self.catalog[:, 2].astype(float) <= JDRange_stop))[0]
-        #     elif self.LSTrRange:
-        #         LSTrRange_start, LSTrRange_stop = [float(x) for x in self.LSTrRange.split('_')]
-        #         indices = np.where(np.logical_and(self.catalog[:, 3].astype(float) >= LSTrRange_start,
-        #                                           self.catalog[:, 3].astype(float) <= LSTrRange_stop))[0]
-        #     self.catalog = np.take(self.catalog, indices, axis=0)
-
-        # # Check if the user wants to input their own files directly
-        # elif self.inputfiles:
-        #     # Take just the basename of the given files
-        #     # (This necessitates not including the ending '/' when inputting files)
-        #     self.files_basename = [os.path.basename(file) for file in self.inputfiles]
-
-        #     # Remove files from the catalog that are not in args.inputfiles
-        #     row_index = 0
-        #     for file in self.catalog[:, 0]:
-        #         if not np.any(file in self.files_basename):
-        #             self.catalog = np.delete(self.catalog, row_index, axis=0)
-        #             row_index -= 1
-        #         row_index += 1
-
-        # # Organizes the good files into self.files, a dictionary: {pol: [file1, file2, ...], ...}
-        # files = self.catalog[:, :2]
-        # self.files = {pol: [] for pol in self.pol_dipole}
-        # for row in files:
-        #     if row[0] not in self.files[row[1]]:
-        #         self.files[row[1]].append(row[0])
-
     def format_pols(self):
         """Format the polarizations, e.g.: translating from IQUV to xx,xy,yx,yy"""
         self.inputpols = self.inputpols.split(',')
@@ -330,30 +294,9 @@ class Zeus(object):
             raise Exception("You provided nonsensical polarization types: %s" %self.inputpols)
 
 zeus = Zeus(args)
-# Name class in new wedge_utils 'Eris'
-
-# parser.add_argument("-A",
-#                     "--AltAnalysis",
-#                     help="Indicate that you want to use an alternative wedge creation method.",
-#                     action="store_true",
-#                     default=False)
-# parser.add_argument("-b",
-#                     "--blavg",
-#                     help="Toggle baseline averaging only.")
-# parser.add_argument("-f",
-#                     "--flavors",
-#                     help="Toggle splitting wedgeslices into a per slope, per baseline basis.",
-#                     action="store_true")
-# parser.add_argument("-l",
-#                     "--BaselineNum",
-#                     help="Input one baseline type (1-8 for H0C).",
-#                     type=int)
 
 # parser.add_argument("-N",
 #                     "--npz_operations",
 #                     help="Various functions that work on npz files.",
 #                     choices=["pspec_diff", "wedge_diff", "combine", "delayavg"])
 
-# parser.add_argument("-p",
-#                     "--path",
-#                     help="Enter the path where you want save the files.")
