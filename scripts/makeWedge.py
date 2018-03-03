@@ -321,7 +321,6 @@ class Eris(object):
 class Ares(object):
     def __init__(self, Zeus):
         self.Zeus = Zeus
-
         self.tag_wedge = 'pf'
 
         if self.Zeus.datatype:                
