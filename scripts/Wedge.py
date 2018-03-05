@@ -90,7 +90,7 @@ parser.add_argument("-D",
 # Pitchfork or Wedge tag
 parser.add_argument("-Y",
     "--tag_wedge",
-    choices=["pf", "w"])
+    choices=["pf", "w", "1dpf", "1dw"])
 
 # Save path
 parser.add_argument("-p",
@@ -208,7 +208,6 @@ class Zeus(object):
                 eris.load_MIRIAD()
                 eris.pitchfork()
                 eris.save()
-
 
     def catalog_directory(self):
         # """Catalogs the MIRIAD files in a directory and looks for each file's polarization, JD, and LST,

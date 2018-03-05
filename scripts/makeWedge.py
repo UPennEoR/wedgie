@@ -339,7 +339,7 @@ class Ares(object):
 
             self.plot_parameters()
 
-            self.ax.set_title(data['pol'])
+            self.ax.set_title(data['pol'], fontsize=20)
             self.ax.tick_params(axis='both', direction='inout')
             if self.Zeus.tag_wedge == "pf":
                 self.ax.set_xlim((-500*self.k_para_factor, 500*self.k_para_factor))
@@ -347,6 +347,7 @@ class Ares(object):
                 plt.sca(self.axes[k])
                 plt.yticks(self.k_perp_midindices, [np.round(self.k_perp_factor * n, 3) for n in self.caldata['baselines']])
                 extent = [delays[0]*self.k_para_factor, delays[-1]*self.k_para_factor, self.k_perp_indices[-1], 0]
+
             elif self.Zeus.tag_wedge == "w":
                 self.plotdata = ((self.plotdata[:, None:49:-1] + self.plotdata[:, None:50])/2).T
                 self.ax.set_ylim((0*self.k_para_factor, 500*self.k_para_factor))
@@ -354,35 +355,52 @@ class Ares(object):
                 plt.xticks(self.k_perp_midindices, [np.round(self.k_perp_factor * n, 3) for n in self.caldata['baselines']], rotation=45)
                 extent = [0, self.k_perp_indices[-1], 0, delays[-1]*self.k_para_factor]
 
-            plot = self.ax.imshow(
-                self.plotdata,
-                aspect='auto',
-                interpolation='nearest',
-                extent=extent,
-                vmax=self.vmax,
-                vmin=self.vmin)
+            if "1d" not in self.Zeus.tag_wedge:
+                plot = self.ax.imshow(
+                    self.plotdata,
+                    aspect='auto',
+                    interpolation='nearest',
+                    extent=extent,
+                    vmax=self.vmax,
+                    vmin=self.vmin)
+            else:
+                for i, bl in enumerate(self.caldata['baselines']):
+                    self.ax.plot(
+                        delays*self.k_para_factor,
+                        self.wedgeslices[i] + self.cosmo,
+                        label=str(np.round(self.caldata['baselines'][i], 1)) + ' m')
+                plt.sca(self.axes[0])
+                plt.ylim((self.vmin, self.vmax))
+                plt.xlim((-500*self.k_para_factor, 500*self.k_para_factor))
 
         start = self.fileZeus.catalog['xx'][0][self.fileZeus.catalog['xx'][0].keys()[0]]['LST'][0]
         stop = self.fileZeus.catalog['xx'][-1][self.fileZeus.catalog['xx'][-1].keys()[0]]['LST'][-1]
-        plt.suptitle("Start: " + start +"\nStop: " + stop)
-
-        cbar_ax = self.f.add_axes([0.9125, 0.25, 0.025, 0.5])
-        cbar = self.f.colorbar(plot, cax=cbar_ax)
-        cbar.set_label(self.power_axis, fontsize=14, ha='center')
+        plt.suptitle("Start: " + start +"\nStop: " + stop, fontsize=20)
+        
+        if "1d" not in self.Zeus.tag_wedge:
+            cbar_ax = self.f.add_axes([0.9125, 0.25, 0.025, 0.5])
+            cbar = self.f.colorbar(plot, cax=cbar_ax)
+            cbar.set_label(self.power_axis, fontsize=20, ha='center')
+        else:
+            plt.sca(self.axes[0])
+            plt.legend(loc="upper left")
 
         self.name_plot()
         plt.savefig(self.plot_name)
 
     def plot_parameters(self):
+
+        # Format cosmo unit factor
         if self.Zeus.args.tag_data == "cosmo":
             if self.fileZeus.freqrange == [580, 680]:
                 self.cosmo = 15.55
             elif self.fileZeus.freqrange == [200, 300]:
                 self.cosmo = 16.2
-            else:
-                self.cosmo = 0.
+        else:
+            self.cosmo = 0.
         self.tag_data = self.Zeus.args.tag_data
 
+        # Find k_perp indices
         self.k_perp_indices = [int(i*10) for i in self.caldata['baselines']]
         self.plotdata = np.zeros((self.k_perp_indices[-1], self.wedgeslices.shape[-1]), dtype=np.float64)
         j = 0
@@ -390,6 +408,7 @@ class Ares(object):
             self.plotdata[j:self.k_perp_indices[i]] = self.wedgeslices[i]
             j = self.k_perp_indices[i]
 
+        # Find k_perp mid-indicies
         self.k_perp_midindices = []
         for i in range(len(self.k_perp_indices)):
             if i == 0:
@@ -397,15 +416,8 @@ class Ares(object):
             else:
                 self.k_perp_midindices.append((self.k_perp_indices[i] + self.k_perp_indices[i-1]) / 2.)
 
+        # Declare factors and figure out axis labels
         if self.tag_data == "cosmo":                
-            if self.Zeus.tag_wedge == "pf":
-                self.f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=14, ha='center')
-                self.f.text(0.06, 0.5, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=14, va='center', rotation='vertical')
-                self.ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
-            elif self.Zeus.tag_wedge == "w":
-                self.f.text(0.5, 0.025, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=14, ha='center')
-                self.f.text(0.06, 0.5, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=14, va='center', rotation='vertical')
-                self.ax.set_yticks([0.0, 0.05, 0.1, 0.15, 0.2, 0.25])
             self.plotdata += self.cosmo
             self.power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
             self.vmin, self.vmax = 7, 17
@@ -413,19 +425,41 @@ class Ares(object):
                 self.k_para_factor, self.k_perp_factor = 5.474e-4, 6.4e-4
             elif self.fileZeus.freqrange == [200, 300]:
                 self.k_para_factor, self.k_perp_factor = 6.239e-4, 4.6e-4
+            if "pf" in self.Zeus.tag_wedge:
+                if self.Zeus.tag_wedge == "1dpf":
+                    self.f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, ha='center')
+                    self.f.text(0.075, 0.5, self.power_axis, fontsize=20, va='center', rotation='vertical')
+                    self.ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
+                else:
+                    self.f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, ha='center')
+                    self.f.text(0.06, 0.5, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=20, va='center', rotation='vertical')
+                    self.ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
+            
+            elif "w" in self.Zeus.tag_wedge:
+                self.f.text(0.5, 0.025, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=20, ha='center')
+                self.f.text(0.06, 0.5, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, va='center', rotation='vertical')
+                self.ax.set_yticks([0.0, 0.05, 0.1, 0.15, 0.2, 0.25])
+
         elif self.tag_data == "std":
-            if self.Zeus.tag_wedge == "pf":
-                self.f.text(0.5, 0.025, 'Delay [ns]', fontsize=14, ha='center')
-                self.f.text(0.075, 0.5, 'Baseline Length [m]', fontsize=14, va='center', rotation='vertical')
-                self.ax.set_xticks([-400, -200, 0, 200, 400])
-            elif self.Zeus.tag_wedge == "w":
-                self.f.text(0.5, 0.025, 'Baseline Length [m]', fontsize=14, ha='center')
-                self.f.text(0.075, 0.5, 'Delay [ns]', fontsize=14, va='center', rotation='vertical')
-                self.ax.set_yticks([0, 100, 200, 300, 400, 500])
             self.power_axis = r'$\log_{10}({\rm mK}^2)$'
             self.vmin, self.vmax = -8, 1
             self.k_para_factor, self.k_perp_factor = 1., 1.
+            if "pf" in self.Zeus.tag_wedge:
+                if self.Zeus.tag_wedge == "1dpf":
+                    self.f.text(0.5, 0.025, 'Delay [ns]', fontsize=20, ha='center')
+                    self.f.text(0.075, 0.5, self.power_axis, fontsize=20, va='center', rotation='vertical')
+                    self.ax.set_xticks([-400, -200, 0, 200, 400])
+                else:
+                    self.f.text(0.5, 0.025, 'Delay [ns]', fontsize=20, ha='center')
+                    self.f.text(0.075, 0.5, 'Baseline Length [m]', fontsize=20, va='center', rotation='vertical')
+                    self.ax.set_xticks([-400, -200, 0, 200, 400])
+            
+            elif "w" in self.Zeus.tag_wedge:
+                self.f.text(0.5, 0.025, 'Baseline Length [m]', fontsize=20, ha='center')
+                self.f.text(0.075, 0.5, 'Delay [ns]', fontsize=20, va='center', rotation='vertical')
+                self.ax.set_yticks([0, 100, 200, 300, 400, 500])
 
+        # Calculate horizon lines
         horizons = []
         for length in self.caldata['baselines']:
             horizons.append(length / sc.c * 10**9)
