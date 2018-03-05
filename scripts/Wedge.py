@@ -8,18 +8,16 @@ Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 Paul La Plante <plaplant_at_sas.upenn.edu>
 """
-# Python Standard Modules
 import argparse
 import os
 
-# Community Made Modules
 import numpy as np
 import ephem
 
-# UPenn-HERA Moduls
+# UPenn-HERA Modules
 import makeWedge as mW
 
-# HERA Community Modules
+# HERA Collaboration Modules
 from pyuvdata import UVData
 
 # Interactive Development
@@ -28,76 +26,86 @@ from IPython import embed
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-T",
-                    "--filetype",
-                    help="Designate whether you will be inputing raw MIRIAD files or npz files, or if you want to use the catalog.",
-                    choices=["MIRIAD", "npz", "catalog"],
-                    default="MIRIAD")
-
+# Used for every operation
 parser.add_argument("-f",
-                    "--filepath",
-                    help="Designate the relative path to the folder that contains the files you want to be analyzed.",
-                    required=True)
+    "--filepath",
+    help="Designate the relative path to the folder that contains the files you want to be analyzed.",
+    required=True)
 
+# File designating arguments
 parser.add_argument("-F",
-                    "--inputfiles",
-                    help="Designate specific files to be analyzed.",
-                    nargs='*')
+    "--inputfiles",
+    help="Designate specific files to be analyzed.",
+    nargs='*')
 parser.add_argument("-J",
-                    "--JDRange",
-                    help="Designate an inclusive range of JD to analyze. (e.g.: '2457548.3_2457549.5')")
+    "--JDRange",
+    help="Designate an inclusive range of JD to analyze. (e.g.: '2457548.3_2457549.5')")
 parser.add_argument("-L",
-                    "--LSTRange",
-                    help="Designate an inclusive range of LST in hours to analyze. (e.g.: '13.0_15.5' will analyze from 1pm to 3:30pm)")
+    "--LSTRange",
+    help="Designate an inclusive range of LST in hours to analyze. (e.g.: '13.0_15.5' will analyze from 1pm to 3:30pm)")
 parser.add_argument("-r",
-                    "--LSTrRange",
-                    help="Designate an inclusive range of LST in hours to analyze. (e.g.: '2.7_3.7')")
+    "--LSTrRange",
+    help="Designate an inclusive range of LST in hours to analyze. (e.g.: '2.7_3.7')")
 
+# Designate polarization types to be analyzed
 parser.add_argument("-P",
-                    "--inputpols",
-                    help="Input a comma-delimited list of polarizations to be used in analysis.",
-                    default="I,Q,U,V")
+    "--inputpols",
+    help="Input a comma-delimited list of polarizations to be used in analysis.",
+    default="I,Q,U,V")
 
+# MIRIAD analysis options
 parser.add_argument("-X",
-                    "--exants",
-                    help="Input a comma-delimited list of antennae to exclude from analysis.",
-                    default="81,22,43,80")
-
+    "--exants",
+    help="Input a comma-delimited list of antennae to exclude from analysis.",
+    choices=[None, "H0C", "H1C"],
+    default=None)
 parser.add_argument("-C",
-                    "--calfile",
-                    help="Enter the calfile to be used for analysis. H0C data only.")
-
+    "--calfile",
+    help="Enter the calfile to be used for analysis. H0C data only.",
+    choices=[None, "H0C"],
+    default=None)
 parser.add_argument("-R",
-                    "--freqrange",
-                    help="Designate with frequency band to analyze.",
-                    default='high')
+    "--freqrange",
+    help="Designate with frequency band to analyze.",
+    choices=[None, "high", "low"],
+    default=None)
 
+# Designate the depth of analysis tag
 parser.add_argument("--blavg",
-                    help="Toggle baseline averaging only.")
+    help="Toggle baseline averaging only.",
+    action="store_true")
 parser.add_argument("--flavors",
-                    help="Toggle splitting wedgeslices into a per slope, per baseline basis.",
-                    action="store_true")
-parser.add_argument("--BaselineNum",
-                    help="Input one baseline type (1-8 for H0C).",
-                    type=int)
+    help="Toggle splitting wedgeslices into a per slope, per baseline basis.",
+    action="store_true")
+parser.add_argument("--blnum",
+    help="Input one baseline type (1-8 for H0C).",
+    type=int)
 
-parser.add_argument("-k",
-                    "--keyword",
-                    help="Designate which file type (by any keyword in the files) you wish to catalog. (e.g.: '.uvcRK', '2457548')")
+# Unit type tag
 parser.add_argument("-D",
-                    "--datatype",
-                    help="Designate abscal or sim data",
-                    choices=["abscal", "sim"])
+    "--tag_data",
+    help="Designate the units to be used",
+    choices=["std", "cosmo"])
 
+# Pitchfork or Wedge tag
+parser.add_argument("-Y",
+    "--tag_wedge",
+    choices=["pf", "w"])
+
+# Save path
 parser.add_argument("-p",
-                    "--path",
-                    help="Enter the path where you want save the files.",
-                    default=".")
-
+    "--path",
+    help="Enter the path where you want save the files.",
+    default=".")
+# Catalog
+parser.add_argument("-k",
+    "--keyword",
+    help="Designate which file type (by any keyword in the files) you wish to catalog. (e.g.: '.uvcRK', '2457548')")
+# Analysis constants
 parser.add_argument("--CLEAN",
-                    help="Designate the CLEAN tolerance.",
-                    type=float,
-                    default=1e-3)
+    help="Designate the CLEAN tolerance.",
+    type=float,
+    default=1e-3)
 
 args = parser.parse_args()
 
@@ -106,78 +114,92 @@ class Zeus(object):
         """Class that handles all the calling and stuff."""
         # Attributes from command line arguments
         self.args = args
-        self.filetype = args.filetype
         self.filepath = os.path.abspath(args.filepath)
-        self.inputpols = args.inputpols
-        self.JDRange = args.JDRange
-        self.LSTrRange = args.LSTrRange
-        self.LSTRange = args.LSTRange
-        self.inputfiles = args.inputfiles
-        self.keyword = args.keyword
-        self.CLEAN = args.CLEAN
 
-        if args.datatype:
-            if args.freqrange == 'high':
-                self.cosmo = 15.55
-            elif args.freqrange == 'low':
-                self.cosmo = 16.2
-            else:
-                self.cosmo = 1.
-        self.datatype = args.datatype
-
-        if args.calfile:
-            self.calfile = os.path.splitext(os.path.basename(args.calfile))[0]
-        else:
-            self.calfile = None
-
-        if args.exants:
-            self.exants = sorted([int(ant) for ant in args.exants.split(',')])
-        else:
+        # Excluded Antennae Formatting
+        if args.exants == None:
             self.exants = list()
+        elif args.exants == "H0C":
+            self.exants = [22, 43, 80, 81]
+        elif args.exants == "H1C":
+            self.exants = [50, 98]
+        else:
+            self.exants = sorted([int(ant) for ant in args.exants.split(',')])
 
-        if args.freqrange:
-            if args.freqrange == 'high':
-                args.freqrange = '580_680'
-            elif args.freqrange == 'low':
-                args.freqrange = '200_300'
-            self.freqrange = [int(freq) for freq in args.freqrange.split('_')]
+        # Calibration File Formatting
+        if args.calfile == None:
+            self.calfile = None
+        elif args.calfile == "H0C":
+            self.calfile = "hsa7458_v001"
+        else:
+            self.calfile = os.path.splitext(os.path.basename(args.calfile))[0]
 
+        # Frequency Range Formatting
+        if args.freqrange == None:
+            args.freqrange = "0_1023"
+        elif args.freqrange == "high":
+            args.freqrange = '580_680'
+        elif args.freqrange == 'low':
+            args.freqrange = '200_300'
+        self.freqrange = [int(freq) for freq in args.freqrange.split('_')]
+
+        # Data Tag
         if args.blavg:
             self.tag = 'blavg'
         elif args.flavors:
             self.tag = 'flavors'
-        elif args.BaselineNum:
-            self.tag = 'blnum{}'.format(args.BaselineNum)
+        elif args.blnum:
+            self.tag = 'blnum{}'.format(args.blnum)
         else:
             self.tag = 'timeavg'
+
+        # Wedge Tag
+        self.tag_wedge = args.tag_wedge
+
+        # Keyword used for cataloging directories
+        self.keyword = args.keyword
 
         # Copy of the initial working directory
         self.cwd = os.getcwd()
 
+        # Save path
         self.path = os.path.abspath(args.path)
 
         # Polarization specific class attributes
+        self.inputpols = args.inputpols
         self.pol_dipole = str()
         self.pol_type = str()
 
         # File specific class attributes
+        self.inputfiles = args.inputfiles
+        self.JDRange = args.JDRange
+        self.LSTRange = args.LSTRange
+        self.LSTrRange = args.LSTrRange
         self.files_basename = list()
         self.files_filepath = list()
         self.files_keyword = list()
         self.files = dict()
         self.catalog = list()
 
-        # Class constants:
+        # Constants:
         self.BIN_WIDTH = 0.3
         self.STOKES_POLS = ['I', 'Q', 'U', 'V']
         self.STANDARD_POLS = ['xx', 'xy', 'yx', 'yy']
+        self.CLEAN = args.CLEAN
 
         # Internal method calls initiated upon instance creation
         self.logic()
 
     def logic(self):
         """Function to determine which process (catalog, wedge creation, plotting, etc.) to initiate."""
-        if self.filetype == 'MIRIAD':
+        if self.inputfiles:
+            ares = mW.Ares(self)
+            ares.makePlot()
+
+        elif self.keyword:
+            self.catalog_directory()
+
+        else:
             self.format_pols()
             self.find_files()
             for pol in self.inputpols:
@@ -187,13 +209,6 @@ class Zeus(object):
                 eris.pitchfork()
                 eris.save()
 
-        if self.filetype == 'npz':
-            ares = mW.Ares(self)
-            ares.plot()
-
-
-        elif self.filetype == 'catalog':
-            self.catalog_directory()
 
     def catalog_directory(self):
         # """Catalogs the MIRIAD files in a directory and looks for each file's polarization, JD, and LST,
