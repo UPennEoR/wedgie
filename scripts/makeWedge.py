@@ -8,18 +8,22 @@ Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 Paul La Plante <plaplant_at_sas.upenn.edu>
 """
+import os
 
 import numpy as np
-import scipy.constants as sc
+import ephem
+import matplotlib.pyplot as plt
+import astropy.units as u
+import astropy.constants as c
+import astropy.cosmology as cos
 
-import os
+import cosmo_utils as cu
 
 from pyuvdata import UVData
 import pyuvdata.utils as uvutils
 import aipy
 import hera_cal
-import ephem
-import matplotlib.pyplot as plt
+import hera_pspec
 
 
 # Interactive Development
@@ -330,13 +334,14 @@ class Ares(object):
         for k, self.ax in enumerate(self.axes):
             file0 = self.Zeus.inputfiles[k]
             data = np.load(file0)
-            delays = data['delays']
+            self.delays = data['delays']*u.ns
 
             self.pols.append(data['pol'].tolist())
             self.fileZeus = data['Zeus'].tolist()
             self.caldata = data['caldata'].tolist()
             self.wedgeslices = data['wslices']
 
+            self.covert_to_cosmo()
             self.plot_parameters()
 
             self.ax.set_title(data['pol'], fontsize=20)
@@ -346,14 +351,15 @@ class Ares(object):
                 self.ax.axvline(x=0, color='#000000', linestyle='--', linewidth=1)
                 plt.sca(self.axes[k])
                 plt.yticks(self.k_perp_midindices, [np.round(self.k_perp_factor * n, 3) for n in self.caldata['baselines']])
-                extent = [delays[0]*self.k_para_factor, delays[-1]*self.k_para_factor, self.k_perp_indices[-1], 0]
+                extent = [self.delays[0]*self.k_para_factor, self.delays[-1]*self.k_para_factor, self.k_perp_indices[-1], 0]
 
             elif self.Zeus.tag_wedge == "w":
-                self.plotdata = ((self.plotdata[:, None:49:-1] + self.plotdata[:, None:50])/2).T
+                half = self.plotdata.shape[1] // 2
+                self.plotdata = ((self.plotdata[:, None:half-1:-1] + self.plotdata[:, None:half])/2).T
                 self.ax.set_ylim((0*self.k_para_factor, 500*self.k_para_factor))
                 plt.sca(self.axes[k])
                 plt.xticks(self.k_perp_midindices, [np.round(self.k_perp_factor * n, 3) for n in self.caldata['baselines']], rotation=45)
-                extent = [0, self.k_perp_indices[-1], 0, delays[-1]*self.k_para_factor]
+                extent = [0, self.k_perp_indices[-1], 0, self.delays[-1]*self.k_para_factor]
 
             if "1d" not in self.Zeus.tag_wedge:
                 plot = self.ax.imshow(
@@ -366,7 +372,7 @@ class Ares(object):
             else:
                 for i, bl in enumerate(self.caldata['baselines']):
                     self.ax.plot(
-                        delays*self.k_para_factor,
+                        self.delays*self.k_para_factor,
                         self.wedgeslices[i] + self.cosmo,
                         label=str(np.round(self.caldata['baselines'][i], 1)) + ' m')
                 plt.sca(self.axes[0])
@@ -390,16 +396,6 @@ class Ares(object):
 
     def plot_parameters(self):
 
-        # Format cosmo unit factor
-        if self.Zeus.args.tag_data == "cosmo":
-            if self.fileZeus.freqrange == [580, 680]:
-                self.cosmo = 15.55
-            elif self.fileZeus.freqrange == [200, 300]:
-                self.cosmo = 16.2
-        else:
-            self.cosmo = 0.
-        self.tag_data = self.Zeus.args.tag_data
-
         # Find k_perp indices
         self.k_perp_indices = [int(i*10) for i in self.caldata['baselines']]
         self.plotdata = np.zeros((self.k_perp_indices[-1], self.wedgeslices.shape[-1]), dtype=np.float64)
@@ -417,10 +413,10 @@ class Ares(object):
                 self.k_perp_midindices.append((self.k_perp_indices[i] + self.k_perp_indices[i-1]) / 2.)
 
         # Declare factors and figure out axis labels
-        if self.tag_data == "cosmo":                
+        if self.Zeus.tag_unit == "cosmo":                
             self.plotdata += self.cosmo
             self.power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
-            self.vmin, self.vmax = 7, 17
+            self.vmin, self.vmax = 8, 14
             if self.fileZeus.freqrange == [580, 680]:
                 self.k_para_factor, self.k_perp_factor = 5.474e-4, 6.4e-4
             elif self.fileZeus.freqrange == [200, 300]:
@@ -440,9 +436,9 @@ class Ares(object):
                 self.f.text(0.06, 0.5, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, va='center', rotation='vertical')
                 self.ax.set_yticks([0.0, 0.05, 0.1, 0.15, 0.2, 0.25])
 
-        elif self.tag_data == "std":
+        elif self.Zeus.tag_unit == "std":
             self.power_axis = r'$\log_{10}({\rm mK}^2)$'
-            self.vmin, self.vmax = -8, 1
+            self.vmin, self.vmax = -8, -2
             self.k_para_factor, self.k_perp_factor = 1., 1.
             if "pf" in self.Zeus.tag_wedge:
                 if self.Zeus.tag_wedge == "1dpf":
@@ -462,7 +458,7 @@ class Ares(object):
         # Calculate horizon lines
         horizons = []
         for length in self.caldata['baselines']:
-            horizons.append(length / sc.c * 10**9)
+            horizons.append(length / c.c * 10**9)
         j = 0
         for i in range(len(horizons)):
             x1, y1 = [horizons[i]*self.k_para_factor, horizons[i]*self.k_para_factor], [j, self.k_perp_indices[i]]
@@ -472,6 +468,24 @@ class Ares(object):
             elif self.Zeus.tag_wedge == "w":
                 self.ax.plot(y1, x1, y2, x2, color='#ffffff', linestyle='--', linewidth=1)
             j = self.k_perp_indices[i]
+
+    def cosmo_units(self):
+        """Get cosmological unit conversion factors, see Eq. (13) in Kohn et al. (2018)"""
+        delays = self.delays*u.ns
+        baselines = self.caldata['baselines']*u.m
+        freqrange = (np.array(self.fileZeus.freqrange) * .1/1024 + .1)*u.GHz
+        bandwidth = freqrange[1] - freqrange[0]
+        centre_frequency = bandwidth / 2 + freqrange[0]
+        z = cu.f2z(centre_frequency)
+        self.kpl = ((2 * np.pi * 1.420*u.GHz * cos.Planck15.H(z)) / (c.c * (1 + z)**2) / cos.Planck15.h).to(u.GHz/u.Mpc)
+        self.kpr = ((2 * np.pi) / ((c.c / centre_frequency) * cos.Planck15.comoving_transverse_distance(z)) / cos.Planck15.h).to(1/(u.m*u.Mpc))
+
+        hp = hera_pspec.conversions.Cosmo_Conversions()
+        X2Y = hp.X2Y(z)*u.Mpc**3/u.sr/u.Hz
+        prefactor = X2Y / (0.27*u.arcmin**2 * bandwidth)
+        factor = ((c.c**2) / (2 * c.k_B * centre_frequency**2))**2
+        self.cosmo = prefactor * factor
+        self.cosmo = np.log10(self.cosmo.to(u.J**-2 * u.sr**-2 * u.GHz**-2 * u.Mpc**7 * u.K**2).value * cos.Planck15.h**-7)
 
     def name_plot(self):
         file0 = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][0].keys()[0]
@@ -486,7 +500,7 @@ class Ares(object):
         JDT = ['_{files}_'.format(files=len(self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]])).join(JDT0 + JDTf)]
         pol = [''.join(self.pols)]
         freqrange = ['{start}_{end}'.format(start=self.fileZeus.freqrange[0], end=self.fileZeus.freqrange[1])]
-        tag = ['_'.join([self.Zeus.tag_wedge] + [self.Zeus.tag] + [self.tag_data])]
+        tag = ['_'.join([self.Zeus.tag_wedge] + [self.Zeus.tag] + [self.Zeus.tag_unit])]
 
         zen = ['zen']
         HH = ['HH']
