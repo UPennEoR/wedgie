@@ -67,7 +67,6 @@ parser.add_argument("-C",
 parser.add_argument("-R",
     "--freqrange",
     help="Designate with frequency band to analyze.",
-    choices=[None, "high", "low"],
     default=None)
 
 # Designate the depth of analysis tag
@@ -83,7 +82,7 @@ parser.add_argument("--blnum",
 
 # Unit type tag
 parser.add_argument("-D",
-    "--tag_data",
+    "--tag_unit",
     help="Designate the units to be used",
     choices=["std", "cosmo"])
 
@@ -98,9 +97,9 @@ parser.add_argument("-p",
     help="Enter the path where you want save the files.",
     default=".")
 # Catalog
-parser.add_argument("-k",
-    "--keyword",
-    help="Designate which file type (by any keyword in the files) you wish to catalog. (e.g.: '.uvcRK', '2457548')")
+parser.add_argument("-e",
+    "--extension",
+    help="Designate which file type (by its extension) you wish to catalog. (e.g.: '.uvcRK'")
 # Analysis constants
 parser.add_argument("--CLEAN",
     help="Designate the CLEAN tolerance.",
@@ -143,7 +142,7 @@ class Zeus(object):
             args.freqrange = '200_300'
         self.freqrange = [int(freq) for freq in args.freqrange.split('_')]
 
-        # Data Tag
+        # Analysis Tag
         if args.blavg:
             self.tag = 'blavg'
         elif args.flavors:
@@ -156,8 +155,11 @@ class Zeus(object):
         # Wedge Tag
         self.tag_wedge = args.tag_wedge
 
-        # Keyword used for cataloging directories
-        self.keyword = args.keyword
+        # Unit-type Tag
+        self.tag_unit = args.tag_unit
+
+        # Extension used for cataloging directories
+        self.extension = args.extension
 
         # Copy of the initial working directory
         self.cwd = os.getcwd()
@@ -177,12 +179,12 @@ class Zeus(object):
         self.LSTrRange = args.LSTrRange
         self.files_basename = list()
         self.files_filepath = list()
-        self.files_keyword = list()
+        self.files_extension = list()
         self.files = dict()
         self.catalog = list()
 
         # Constants:
-        self.BIN_WIDTH = 0.3
+        self.BIN_WIDTH = 0.3 
         self.STOKES_POLS = ['I', 'Q', 'U', 'V']
         self.STANDARD_POLS = ['xx', 'xy', 'yx', 'yy']
         self.CLEAN = args.CLEAN
@@ -196,7 +198,7 @@ class Zeus(object):
             ares = mW.Ares(self)
             ares.makePlot()
 
-        elif self.keyword:
+        elif self.extension:
             self.catalog_directory()
 
         else:
@@ -219,12 +221,12 @@ class Zeus(object):
         array_lst = np.array([], dtype=float)
 
         files_filepath = os.listdir(self.filepath)
-        files_keyword = sorted([file for file in files_filepath if self.keyword in file])
-        if len(files_keyword) == 0:
-            raise Exception("There are no files with keyword '{}' in file path '{}'.".format(self.keyword, self.filepath))
+        files_extension = sorted([file for file in files_filepath if os.path.splitext(file)[1] == self.extension])
+        if len(files_extension) == 0:
+            raise Exception("There are no files with extension '{}' in file path '{}'.".format(self.extension, self.filepath))
 
         # Cycle through the MIRIAD files in the directory and grab their info
-        for file in files_keyword:
+        for file in files_extension:
             uv = UVData()
             uv.read_miriad(os.path.join(self.filepath, file))
             array_jd = np.array(np.unique(uv.time_array), dtype=float)
