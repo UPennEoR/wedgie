@@ -67,7 +67,7 @@ parser.add_argument("-C",
 parser.add_argument("-R",
     "--freqrange",
     help="Designate with frequency band to analyze.",
-    default=None)
+    required=True)
 
 # Designate the depth of analysis tag
 parser.add_argument("--blavg",
@@ -134,7 +134,7 @@ class Zeus(object):
             self.calfile = os.path.splitext(os.path.basename(args.calfile))[0]
 
         # Frequency Range Formatting
-        if args.freqrange == None:
+        if args.freqrange == "":
             args.freqrange = "0_1023"
         elif args.freqrange == "high":
             args.freqrange = '580_680'
