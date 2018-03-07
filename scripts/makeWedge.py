@@ -210,7 +210,7 @@ class Eris(object):
                 baseline = np.sqrt(np.power(dx, 2) + np.power(dy, 2))
                 baseline = np.round(baseline, decimals=2)
                 baseline = np.digitize(baseline, bins_baseline) * self.Zeus.BIN_WIDTH
-                baselines = np.append(baselines, baseline - 0.1) 
+                baselines = np.append(baselines, baseline) 
 
                 # Find the slope of the pair, format it, and add it to the slopes array
                 dy = antennae[pair[1]]['top_y'] - antennae[pair[0]]['top_y']
@@ -322,170 +322,217 @@ class Eris(object):
 class Ares(object):
     def __init__(self, Zeus):
         self.Zeus = Zeus
+        self.fontsize = 20
+        self.xaxis_x, self.xaxis_y = 0.5, 0.03
+        self.yaxis_x, self.yaxis_y = 0.08, 0.5
+        self.paxes = [0.9125, 0.25, 0.025, 0.5] 
 
     def makePlot(self):
         nplots = len(self.Zeus.inputfiles)
-        self.f, self.axes = plt.subplots(1, nplots, sharex=True, sharey=True, figsize=(20, 10))
+        f, axes = plt.subplots(1, nplots, sharex=True, sharey=True, figsize=(20, 10))
         if nplots == 1:
-            self.axes = [self.axes]
-        self.f.subplots_adjust(wspace=0)
+            axes = [axes]
+        f.subplots_adjust(wspace=0)
         self.pols = []
         
-        for k, self.ax in enumerate(self.axes):
+        for k, ax in enumerate(axes):
             file0 = self.Zeus.inputfiles[k]
-            data = np.load(file0)
-            self.delays = data['delays']*u.ns
-
-            self.pols.append(data['pol'].tolist())
+            data = np.load(file0) 
+            pol = data['pol'].tolist()
             self.fileZeus = data['Zeus'].tolist()
-            self.caldata = data['caldata'].tolist()
-            self.wedgeslices = data['wslices']
+            caldata = data['caldata'].tolist()
+            
+            self.pols.append(pol)
+            freqrange = np.array(self.fileZeus.freqrange, dtype=np.int32)
+            baselines = caldata['baselines']
+            delays = data['delays']
+            wedgeslices = data['wslices']
 
-            self.covert_to_cosmo()
-            self.plot_parameters()
+            # ax.tick_params(axis='both', direction='inout')
+            ax.set_title(pol, fontsize=self.fontsize)
+            
+            # Calculate kpr indices, and stretch wedgeslices array by a factor of 10
+            kpr_indices = [int(bl * 10) for bl in baselines]
+            wedgeslices_stretch = np.zeros((kpr_indices[-1], wedgeslices.shape[-1]), dtype=np.float128)
+            j = 0
+            for i in range(len(kpr_indices)):
+                wedgeslices_stretch[j:kpr_indices[i]] = wedgeslices[i]
+                j = kpr_indices[i]
 
-            self.ax.set_title(data['pol'], fontsize=20)
-            self.ax.tick_params(axis='both', direction='inout')
-            if self.Zeus.tag_wedge == "pf":
-                self.ax.set_xlim((-500*self.k_para_factor, 500*self.k_para_factor))
-                self.ax.axvline(x=0, color='#000000', linestyle='--', linewidth=1)
-                plt.sca(self.axes[k])
-                plt.yticks(self.k_perp_midindices, [np.round(self.k_perp_factor * n, 3) for n in self.caldata['baselines']])
-                extent = [self.delays[0]*self.k_para_factor, self.delays[-1]*self.k_para_factor, self.k_perp_indices[-1], 0]
+            # Find kpr mid-indicies for the tickmarks
+            kpr_midindices = []
+            for i in range(len(kpr_indices)):
+                if i == 0:
+                    kpr_midindices.append(kpr_indices[i] / 2.)
+                else:
+                    kpr_midindices.append((kpr_indices[i] + kpr_indices[i - 1]) / 2.)
 
-            elif self.Zeus.tag_wedge == "w":
-                half = self.plotdata.shape[1] // 2
-                self.plotdata = ((self.plotdata[:, None:half-1:-1] + self.plotdata[:, None:half])/2).T
-                self.ax.set_ylim((0*self.k_para_factor, 500*self.k_para_factor))
-                plt.sca(self.axes[k])
-                plt.xticks(self.k_perp_midindices, [np.round(self.k_perp_factor * n, 3) for n in self.caldata['baselines']], rotation=45)
-                extent = [0, self.k_perp_indices[-1], 0, self.delays[-1]*self.k_para_factor]
+            if self.Zeus.tag_unit == "cosmo":
+                """Calculate cosmological units"""
+                # First apply astropy units to necessary quantities
+                units_delays = delays*u.ns
+                units_baselines = baselines*u.m
 
-            if "1d" not in self.Zeus.tag_wedge:
-                plot = self.ax.imshow(
-                    self.plotdata,
-                    aspect='auto',
-                    interpolation='nearest',
-                    extent=extent,
-                    vmax=self.vmax,
-                    vmin=self.vmin)
-            else:
-                for i, bl in enumerate(self.caldata['baselines']):
-                    self.ax.plot(
-                        self.delays*self.k_para_factor,
-                        self.wedgeslices[i] + self.cosmo,
-                        label=str(np.round(self.caldata['baselines'][i], 1)) + ' m')
-                plt.sca(self.axes[0])
-                plt.ylim((self.vmin, self.vmax))
-                plt.xlim((-500*self.k_para_factor, 500*self.k_para_factor))
+                # Convert frequency range from channels to Gigahertz
+                units_freqrange = (freqrange * .1/1024. + .1)*u.GHz
+
+                # Calculate bandwidth and center frequency
+                bandwidth = units_freqrange[1] - units_freqrange[0]
+                center_frequency = bandwidth / 2. + units_freqrange[0]
+
+                # Calculate the redshift, z, of the 21cm line given the center frequency
+                F21 = 1.42040575177*u.GHz
+                z = (F21 / center_frequency) - 1.
+
+                # Calculate k_parallel (kpl) and k_perpendicular (kpr) unit conversion factors
+                h = cos.Planck15.h
+                kpl = 2. * np.pi * F21 * cos.Planck15.H(z) * c.c**-1. * (1. + z)**-2.
+                kpl = kpl.to(u.GHz/u.Mpc) / h
+                kpr = 2. * np.pi * center_frequency * c.c**-1. * cos.Planck13.comoving_transverse_distance(z)**-1.
+                kpr = kpr.to(1/(u.m*u.Mpc)) / h
+
+                # Calculate cosmological power conversion 
+                X2Y = cos.Planck15.comoving_transverse_distance(z)**2 * cos.Planck15.comoving_distance(z)
+                # Omega = (0.27*u.arcmin**2).to(u.sr)
+                Omega = 0.04*u.sr
+                cosmo = X2Y * Omega**-1 * bandwidth**-1 * c.c**4. * 4.**-1. * c.k_B**-2. * center_frequency**-4.
+                cosmo = cosmo.to(u.mK**2 * u.Mpc**3 * u.GHz**-1 * u.Jy**-2 * u.sr**-1) * h**3
+                cosmo = np.log10(cosmo.value)
+
+                # Apply unit conversions
+                delays = ((units_delays * kpl).to(u.Mpc**-1)).value
+                baselines = ((units_baselines * kpr).to(u.Mpc**-1)).value
+                wedgeslices += cosmo
+
+                # Declare axis labels
+                axis_kpl_tau = r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$'
+                axis_kpr_b = r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$'
+                axis_power = r'$\log_{10}({\rm mK^2\ Mpc^3\ h^{-3}})$'
+                axis_kpr_b_1d = [str(bl) + r' $\rm h\ Mpc^{-1}$' for bl in np.round(baselines, 3)]
+
+                # Set kpl/delay axis labels
+                label_kpl_tau_pf = np.array([-0.2, -0.1, 0, 0.1, 0.2])
+                label_kpl_tau_w = np.array([0, 0.05, 0.1, 0.15, 0.2, 0.25])
+
+                # Set dynamic range
+                vmin, vmax = 6, 14
+
+                # Remove units from kpl and kpr
+                kpl, kpr = kpl.value, kpr.value
+
+            elif self.Zeus.tag_unit == "std":
+                # Declare axis labels
+                axis_kpl_tau = r'$\rm \tau\ [ns]$'
+                axis_kpr_b = r'$\rm {\bf |b|}\ [m]$'
+                axis_power = r'$\log_{10}({\rm mK}^2)$'
+                axis_kpr_b_1d = [str(bl) + ' m' for bl in np.round(baselines, 1)]
+                
+                # Set kpl/delay axis labels
+                label_kpl_tau_pf = np.array([-400, -200, 0, 200, 400])
+                label_kpl_tau_w = np.array([0, 100, 200, 300, 400, 500])
+
+                # Set dynamic range
+                vmin, vmax = -8, 0
+
+                # Set defualt kpl, kpr, and cosmo values
+                kpl, kpr, cosmo = 1., 1., 0.
+            
+            # Calculate horizon lines
+            horizons = []
+            for bl in baselines:
+                horizons.append(bl / c.c * 10**9)
+            j = 0
+            for i in range(len(horizons)):
+                x1, y1 = [horizons[i], horizons[i]], [j, kpr_indices[i]]
+                x2, y2 = [-horizons[i], -horizons[i]], [j, kpr_indices[i]]
+                if 'pf' in self.Zeus.tag_wedge:
+                    ax.plot(x1, y1, x2, y2, color='#ffffff', linestyle='--', linewidth=1)
+                elif 'w' in self.Zeus.tag_wedge:
+                    ax.plot(y1, x1, y2, x2, color='#ffffff', linestyle='--', linewidth=1)
+                j = kpr_indices[i]
+
+            if self.Zeus.tag == "timeavg":
+                if self.Zeus.tag_wedge == "1dpf":
+                    plt.sca(axes[k])
+                    for i, bl in enumerate(baselines):
+                        plt.plot(
+                            delays,
+                            wedgeslices[i],
+                            label=axis_kpr_b_1d[i])
+                    f.text(self.xaxis_x, self.xaxis_y, axis_kpl_tau, fontsize=self.fontsize, ha='center')
+                    f.text(self.yaxis_x, self.yaxis_y, axis_power, fontsize=self.fontsize, va='center', rotation='vertical')
+                    plt.ylim((vmin, vmax))
+                    plt.xlim((-500 * kpl, 500 * kpl))
+                    plt.xticks(label_kpl_tau_pf)
+
+                else:
+                    if self.Zeus.tag_wedge == "pf":
+                        plt.sca(axes[k])
+                        f.text(self.xaxis_x, self.xaxis_y, axis_kpl_tau, fontsize=self.fontsize, ha='center')
+                        f.text(self.yaxis_x, self.yaxis_y, axis_kpr_b, fontsize=self.fontsize, va='center', rotation='vertical')
+                        plt.xticks(label_kpl_tau_pf)
+                        plt.yticks(kpr_midindices, [np.round(bl, 3) for bl in baselines])
+                        plt.xlim((-500 * kpl, 500 * kpl))
+                        plt.axvline(x=0, color='#000000', linestyle='--', linewidth=1)
+                        extent = [delays[0], delays[-1], kpr_indices[-1], 0]
+                    elif self.Zeus.tag_wedge == "w":
+                        half = wedgeslices.shape[1] // 2
+                        wedgeslices = ((wedgeslices[:, None:half-1:-1] + wedgeslices[:, None:half]) / 2.).T
+                        plt.sca(axes[k])
+                        f.text(self.xaxis_x, self.xaxis_y, axis_kpr_b, fontsize=self.fontsize, ha='center')
+                        f.text(self.yaxis_x, self.yaxis_y, axis_kpl_tau, fontsize=self.fontsize, va='center', rotation='vertical')
+                        plt.yticks(label_kpl_tau_w)
+                        plt.xticks(kpr_midindices, [np.round(bl, 3) for bl in baselines], rotation=45)
+                        plt.ylim((0, 500 * kpl))
+                        extent = [0, kpr_indices[-1], 0, delays[-1]]
+
+                    plot = plt.imshow(
+                        wedgeslices,
+                        aspect='auto',
+                        interpolation='nearest',
+                        extent=extent,
+                        vmax=vmax,
+                        vmin=vmin)
+
+            elif self.Zeus.tag == "blavg":
+                if self.Zeus.tag_wedge == "pf":
+                    pass
+                elif self.Zeus.tag_wedge == "w":
+                    pass
+                elif self.Zeus.tag_wedge == "1dpf":
+                    pass
+
+            elif self.Zeus.tag == "flavors":
+                if self.Zeus.tag_wedge == "pf":
+                    pass
+                elif self.Zeus.tag_wedge == "w":
+                    pass
+                elif self.Zeus.tag_wedge == "1dpf":
+                    pass
+
+            elif "blnum" in self.Zeus.tag:
+                if self.Zeus.tag_wedge == "pf":
+                    pass
+                elif self.Zeus.tag_wedge == "w":
+                    pass
+                elif self.Zeus.tag_wedge == "1dpf":
+                    pass
 
         start = self.fileZeus.catalog['xx'][0][self.fileZeus.catalog['xx'][0].keys()[0]]['LST'][0]
         stop = self.fileZeus.catalog['xx'][-1][self.fileZeus.catalog['xx'][-1].keys()[0]]['LST'][-1]
-        plt.suptitle("Start: " + start +"\nStop: " + stop, fontsize=20)
+        plt.suptitle("Start: " + start +"\nStop: " + stop, fontsize=self.fontsize)
+        plt.tick_params(axis='both', direction='inout')
         
-        if "1d" not in self.Zeus.tag_wedge:
-            cbar_ax = self.f.add_axes([0.9125, 0.25, 0.025, 0.5])
-            cbar = self.f.colorbar(plot, cax=cbar_ax)
-            cbar.set_label(self.power_axis, fontsize=20, ha='center')
-        else:
-            plt.sca(self.axes[0])
+        if "1d" in self.Zeus.tag_wedge:
+            plt.sca(axes[0])
             plt.legend(loc="upper left")
+        else:
+            cbar_ax = f.add_axes(self.paxes)
+            cbar = f.colorbar(plot, cax=cbar_ax)
+            cbar.set_label(axis_power, fontsize=self.fontsize, ha='center')
 
         self.name_plot()
         plt.savefig(self.plot_name)
-
-    def plot_parameters(self):
-
-        # Find k_perp indices
-        self.k_perp_indices = [int(i*10) for i in self.caldata['baselines']]
-        self.plotdata = np.zeros((self.k_perp_indices[-1], self.wedgeslices.shape[-1]), dtype=np.float64)
-        j = 0
-        for i in range(len(self.k_perp_indices)):
-            self.plotdata[j:self.k_perp_indices[i]] = self.wedgeslices[i]
-            j = self.k_perp_indices[i]
-
-        # Find k_perp mid-indicies
-        self.k_perp_midindices = []
-        for i in range(len(self.k_perp_indices)):
-            if i == 0:
-                self.k_perp_midindices.append(self.k_perp_indices[i] / 2.)
-            else:
-                self.k_perp_midindices.append((self.k_perp_indices[i] + self.k_perp_indices[i-1]) / 2.)
-
-        # Declare factors and figure out axis labels
-        if self.Zeus.tag_unit == "cosmo":                
-            self.plotdata += self.cosmo
-            self.power_axis = r'$\log_{10}({\rm mK^2 Mpc^3 h^{-3}})$'
-            self.vmin, self.vmax = 8, 14
-            if self.fileZeus.freqrange == [580, 680]:
-                self.k_para_factor, self.k_perp_factor = 5.474e-4, 6.4e-4
-            elif self.fileZeus.freqrange == [200, 300]:
-                self.k_para_factor, self.k_perp_factor = 6.239e-4, 4.6e-4
-            if "pf" in self.Zeus.tag_wedge:
-                if self.Zeus.tag_wedge == "1dpf":
-                    self.f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, ha='center')
-                    self.f.text(0.075, 0.5, self.power_axis, fontsize=20, va='center', rotation='vertical')
-                    self.ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
-                else:
-                    self.f.text(0.5, 0.025, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, ha='center')
-                    self.f.text(0.06, 0.5, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=20, va='center', rotation='vertical')
-                    self.ax.set_xticks([-0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4])
-            
-            elif "w" in self.Zeus.tag_wedge:
-                self.f.text(0.5, 0.025, r'$k_{\perp}\ [\rm h\ Mpc^{-1}]$', fontsize=20, ha='center')
-                self.f.text(0.06, 0.5, r'$k_{\parallel}\ [\rm h\ Mpc^{-1}]$', fontsize=20, va='center', rotation='vertical')
-                self.ax.set_yticks([0.0, 0.05, 0.1, 0.15, 0.2, 0.25])
-
-        elif self.Zeus.tag_unit == "std":
-            self.power_axis = r'$\log_{10}({\rm mK}^2)$'
-            self.vmin, self.vmax = -8, -2
-            self.k_para_factor, self.k_perp_factor = 1., 1.
-            if "pf" in self.Zeus.tag_wedge:
-                if self.Zeus.tag_wedge == "1dpf":
-                    self.f.text(0.5, 0.025, 'Delay [ns]', fontsize=20, ha='center')
-                    self.f.text(0.075, 0.5, self.power_axis, fontsize=20, va='center', rotation='vertical')
-                    self.ax.set_xticks([-400, -200, 0, 200, 400])
-                else:
-                    self.f.text(0.5, 0.025, 'Delay [ns]', fontsize=20, ha='center')
-                    self.f.text(0.075, 0.5, 'Baseline Length [m]', fontsize=20, va='center', rotation='vertical')
-                    self.ax.set_xticks([-400, -200, 0, 200, 400])
-            
-            elif "w" in self.Zeus.tag_wedge:
-                self.f.text(0.5, 0.025, 'Baseline Length [m]', fontsize=20, ha='center')
-                self.f.text(0.075, 0.5, 'Delay [ns]', fontsize=20, va='center', rotation='vertical')
-                self.ax.set_yticks([0, 100, 200, 300, 400, 500])
-
-        # Calculate horizon lines
-        horizons = []
-        for length in self.caldata['baselines']:
-            horizons.append(length / c.c * 10**9)
-        j = 0
-        for i in range(len(horizons)):
-            x1, y1 = [horizons[i]*self.k_para_factor, horizons[i]*self.k_para_factor], [j, self.k_perp_indices[i]]
-            x2, y2 = [-horizons[i]*self.k_para_factor, -horizons[i]*self.k_para_factor], [j, self.k_perp_indices[i]]
-            if self.Zeus.tag_wedge == "pf":
-                self.ax.plot(x1, y1, x2, y2, color='#ffffff', linestyle='--', linewidth=1)
-            elif self.Zeus.tag_wedge == "w":
-                self.ax.plot(y1, x1, y2, x2, color='#ffffff', linestyle='--', linewidth=1)
-            j = self.k_perp_indices[i]
-
-    def cosmo_units(self):
-        """Get cosmological unit conversion factors, see Eq. (13) in Kohn et al. (2018)"""
-        delays = self.delays*u.ns
-        baselines = self.caldata['baselines']*u.m
-        freqrange = (np.array(self.fileZeus.freqrange) * .1/1024 + .1)*u.GHz
-        bandwidth = freqrange[1] - freqrange[0]
-        centre_frequency = bandwidth / 2 + freqrange[0]
-        z = cu.f2z(centre_frequency)
-        self.kpl = ((2 * np.pi * 1.420*u.GHz * cos.Planck15.H(z)) / (c.c * (1 + z)**2) / cos.Planck15.h).to(u.GHz/u.Mpc)
-        self.kpr = ((2 * np.pi) / ((c.c / centre_frequency) * cos.Planck15.comoving_transverse_distance(z)) / cos.Planck15.h).to(1/(u.m*u.Mpc))
-
-        hp = hera_pspec.conversions.Cosmo_Conversions()
-        X2Y = hp.X2Y(z)*u.Mpc**3/u.sr/u.Hz
-        prefactor = X2Y / (0.27*u.arcmin**2 * bandwidth)
-        factor = ((c.c**2) / (2 * c.k_B * centre_frequency**2))**2
-        self.cosmo = prefactor * factor
-        self.cosmo = np.log10(self.cosmo.to(u.J**-2 * u.sr**-2 * u.GHz**-2 * u.Mpc**7 * u.K**2).value * cos.Planck15.h**-7)
 
     def name_plot(self):
         file0 = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][0].keys()[0]
@@ -500,7 +547,7 @@ class Ares(object):
         JDT = ['_{files}_'.format(files=len(self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]])).join(JDT0 + JDTf)]
         pol = [''.join(self.pols)]
         freqrange = ['{start}_{end}'.format(start=self.fileZeus.freqrange[0], end=self.fileZeus.freqrange[1])]
-        tag = ['_'.join([self.Zeus.tag_wedge] + [self.Zeus.tag] + [self.Zeus.tag_unit])]
+        tag = ['_'.join([self.Zeus.tag] + [self.Zeus.tag_wedge] + [self.Zeus.tag_unit])]
 
         zen = ['zen']
         HH = ['HH']
