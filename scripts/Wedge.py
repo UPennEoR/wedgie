@@ -139,7 +139,7 @@ class Zeus(object):
 
         # Frequency Range Formatting
         if args.freqrange == None:
-            args.freqrange = "0_1023"
+            args.freqrange = "0_1024"
         elif args.freqrange == "high":
             args.freqrange = '580_680'
         elif args.freqrange == 'low':
