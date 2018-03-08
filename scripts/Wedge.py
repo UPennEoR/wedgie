@@ -67,7 +67,7 @@ parser.add_argument("-C",
 parser.add_argument("-R",
     "--freqrange",
     help="Designate with frequency band to analyze.",
-    required=True)
+    default=None)
 
 # Designate the depth of analysis tag
 parser.add_argument("--blavg",
@@ -100,6 +100,10 @@ parser.add_argument("-p",
 parser.add_argument("-e",
     "--extension",
     help="Designate which file type (by its extension) you wish to catalog. (e.g.: '.uvcRK'")
+# Print Catalog
+parser.add_argument("--printc",
+    help="Print the directory catalog.",
+    action="store_true")
 # Analysis constants
 parser.add_argument("--CLEAN",
     help="Designate the CLEAN tolerance.",
@@ -134,7 +138,7 @@ class Zeus(object):
             self.calfile = os.path.splitext(os.path.basename(args.calfile))[0]
 
         # Frequency Range Formatting
-        if args.freqrange == "":
+        if args.freqrange == None:
             args.freqrange = "0_1023"
         elif args.freqrange == "high":
             args.freqrange = '580_680'
@@ -160,6 +164,9 @@ class Zeus(object):
 
         # Extension used for cataloging directories
         self.extension = args.extension
+
+        # Print catalog boolean attribute
+        self.printc = args.printc
 
         # Copy of the initial working directory
         self.cwd = os.getcwd()
@@ -250,6 +257,9 @@ class Zeus(object):
         # Try to open catalog.npz
         try:
             self.catalog = np.load('catalog.npz')['cat'].tolist()
+            if self.printc:
+                print(self.catalog)
+                quit()
         except IOError:
             raise Exception("There is no catalog (catalog.npz) in the specified path: %s" %self.filepath)
 
