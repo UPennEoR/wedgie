@@ -52,7 +52,6 @@ class Eris(object):
 
         self.cwedgeslices = list()
         self.wedgeslices = list()
-        self.delays = list()
 
     def name_npz(self):
         file0 = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][0].keys()[0]
@@ -306,9 +305,14 @@ class Eris(object):
                 self.vis_sq_antpair[i // 2, :] = np.conj(v1) * v2
 
     def save(self):
-        channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
-        num_bins = len(self.info['freqs'])
-        self.delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+        # channel_width = (self.info['freqs'][1] - self.info['freqs'][0]) * (10**3)
+        # delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width / num_bins))
+
+        channel_width = np.diff(self.info['freqs'])[0]
+        num_bins = self.info['freqs'].shape[0]
+        delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width))
+
+        # print(delays)
 
         np.savez(self.npz_name,
                  Zeus=self.Zeus,
@@ -317,15 +321,15 @@ class Eris(object):
                  caldata=self.caldata,
                  pol=self.pol,
                  freqs=self.info['freqs'],
-                 delays=self.delays)
+                 delays=delays)
 
 class Ares(object):
     def __init__(self, Zeus):
         self.Zeus = Zeus
         self.fontsize = 20
         self.xaxis_x, self.xaxis_y = 0.5, 0.03
-        self.yaxis_x, self.yaxis_y = 0.08, 0.5
-        self.paxes = [0.9125, 0.25, 0.025, 0.5] 
+        self.yaxis_x, self.yaxis_y = 0.07, 0.5
+        self.p_axes = [0.9125, 0.25, 0.025, 0.5] 
 
     def makePlot(self):
         nplots = len(self.Zeus.inputfiles)
@@ -412,8 +416,8 @@ class Ares(object):
                 cosmo = np.log10(cosmo.value)
 
                 # Apply unit conversions
-                # delays = ((units_delays * kpl).to(u.Mpc**-1)).value
-                # baselines = ((units_baselines * kpr).to(u.Mpc**-1)).value
+                delays = ((units_delays * kpl).to(u.Mpc**-1)).value
+                baselines = ((units_baselines * kpr).to(u.Mpc**-1)).value
                 wedgeslices += cosmo
 
                 # Declare axis labels
@@ -423,11 +427,11 @@ class Ares(object):
                 axis_kpr_b_1d = [str(bl) + r' $\rm h\ Mpc^{-1}$' for bl in np.round(baselines, 3)]
 
                 # Set kpl/delay axis labels
-                label_kpl_tau_pf = np.array([-0.2, -0.1, 0, 0.1, 0.2])
-                label_kpl_tau_w = np.array([0, 0.05, 0.1, 0.15, 0.2, 0.25])
+                label_kpl_tau_pf = np.array([-2, -1, 0, 1, 2])
+                label_kpl_tau_w = np.array([0, 0.5, 1, 1.5, 2, 2.5])
 
                 # Set dynamic range
-                vmin, vmax = 6, 14
+                vmin, vmax = 7, 14
 
                 # Remove units from kpl and kpr
                 kpl, kpr = kpl.value, kpr.value
@@ -440,22 +444,19 @@ class Ares(object):
                 axis_kpr_b_1d = [str(bl) + ' m' for bl in np.round(baselines, 1)]
                 
                 # Set kpl/delay axis labels
-                label_kpl_tau_pf = np.array([-400, -200, 0, 200, 400])
-                label_kpl_tau_w = np.array([0, 100, 200, 300, 400, 500])
+                label_kpl_tau_pf = np.array([-4000, -2000, 0, 2000, 4000])
+                label_kpl_tau_w = np.array([0, 1000, 2000, 3000, 4000])
 
                 # Set dynamic range
-                vmin, vmax = -8, 0
+                vmin, vmax = -8, -1
 
                 # Set defualt kpl, kpr, and cosmo values
                 kpl, kpr, cosmo = 1., 1., 0.
 
-            # Set bandwith factor
-            bwf = (freqrange[1] - freqrange[0]) / 100
-
             # Calculate horizon lines
             horizons = []
             for bl in baselines:
-                horizons.append(bl * kpl / c.c * 10**9)
+                horizons.append(bl / c.c * 10**9)
             j = 0
             for i in range(len(horizons)):
                 x1, y1 = [horizons[i], horizons[i]], [j, kpr_indices[i]]
@@ -472,14 +473,14 @@ class Ares(object):
                     j=0
                     for i, bl in enumerate(baselines):
                         plt.plot(
-                            delays * kpl,
+                            delays,
                             wedgeslices[j],
                             label=axis_kpr_b_1d[i])
                         j = kpr_indices[i]
                     f.text(self.xaxis_x, self.xaxis_y, axis_kpl_tau, fontsize=self.fontsize, ha='center')
                     f.text(self.yaxis_x, self.yaxis_y, axis_power, fontsize=self.fontsize, va='center', rotation='vertical')
                     plt.ylim((vmin, vmax))
-                    plt.xlim((-500 * kpl, 500 * kpl))
+                    plt.xlim((-5000 * kpl, 5000 * kpl))
                     plt.xticks(label_kpl_tau_pf)
 
                 else:
@@ -488,20 +489,20 @@ class Ares(object):
                         f.text(self.xaxis_x, self.xaxis_y, axis_kpl_tau, fontsize=self.fontsize, ha='center')
                         f.text(self.yaxis_x, self.yaxis_y, axis_kpr_b, fontsize=self.fontsize, va='center', rotation='vertical')
                         plt.xticks(label_kpl_tau_pf)
-                        plt.yticks(kpr_midindices, [np.round(bl * kpr, 3) for bl in baselines])
-                        plt.xlim((-500 * kpl, 500 * kpl))
+                        plt.yticks(kpr_midindices, [np.round(bl, 3) for bl in baselines])
+                        plt.xlim((-5000 * kpl, 5000 * kpl))
                         plt.axvline(x=0, color='#000000', linestyle='--', linewidth=1)
-                        extent = [delays[0] * kpl, delays[-1] * kpl, kpr_indices[-1], 0]
+                        extent = [delays[0], delays[-1], kpr_indices[-1], 0]
                     elif self.Zeus.tag_wedge == "w":
                         half = wedgeslices.shape[1] // 2
-                        wedgeslices = ((wedgeslices[:, None:half-1:-1] + wedgeslices[:, None:half]) / 2.).T
+                        wedgeslices = ((wedgeslices[:, None:half:-1] + wedgeslices[:, None:half]) / 2.).T
                         plt.sca(axes[k])
                         f.text(self.xaxis_x, self.xaxis_y, axis_kpr_b, fontsize=self.fontsize, ha='center')
                         f.text(self.yaxis_x, self.yaxis_y, axis_kpl_tau, fontsize=self.fontsize, va='center', rotation='vertical')
                         plt.yticks(label_kpl_tau_w)
-                        plt.xticks(kpr_midindices, [np.round(bl * kpr, 3) for bl in baselines], rotation=45)
-                        plt.ylim((0, 500 * kpl))
-                        extent = [0, kpr_indices[-1], 0, delays[-1] * kpl]
+                        plt.xticks(kpr_midindices, [np.round(bl, 3) for bl in baselines], rotation=45)
+                        plt.ylim((0, 5000 * kpl))
+                        extent = [0, kpr_indices[-1], 0, delays[-1]]
 
                     plot = plt.imshow(
                         wedgeslices,
@@ -544,7 +545,7 @@ class Ares(object):
             plt.sca(axes[0])
             plt.legend(loc="upper left")
         else:
-            cbar_ax = f.add_axes(self.paxes)
+            cbar_ax = f.add_axes(self.p_axes)
             cbar = f.colorbar(plot, cax=cbar_ax)
             cbar.set_label(axis_power, fontsize=self.fontsize, ha='center')
 
