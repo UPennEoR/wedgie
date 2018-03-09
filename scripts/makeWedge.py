@@ -17,8 +17,6 @@ import astropy.units as u
 import astropy.constants as c
 import astropy.cosmology as cos
 
-import cosmo_utils as cu
-
 from pyuvdata import UVData
 import pyuvdata.utils as uvutils
 import aipy
