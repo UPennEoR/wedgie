@@ -84,12 +84,14 @@ parser.add_argument("--blnum",
 parser.add_argument("-D",
     "--tag_unit",
     help="Designate the units to be used",
-    choices=["std", "cosmo"])
+    choices=["std", "cosmo"],
+    default="cosmo")
 
 # Pitchfork or Wedge tag
 parser.add_argument("-Y",
     "--tag_wedge",
-    choices=["pf", "w", "1dpf", "1dw"])
+    choices=["pf", "w", "1dpf", "1dw"],
+    default="w")
 
 # Save path
 parser.add_argument("-p",
@@ -109,6 +111,11 @@ parser.add_argument("--CLEAN",
     help="Designate the CLEAN tolerance.",
     type=float,
     default=1e-3)
+# Stepping through files
+parser.add_argument("-S",
+    "--step",
+    type=int,
+    default=0)
 
 args = parser.parse_args()
 
@@ -168,6 +175,10 @@ class Zeus(object):
         # Print catalog boolean attribute
         self.printc = args.printc
 
+        # Stepping attribute
+        self.step = args.step
+        self.i = int()
+
         # Copy of the initial working directory
         self.cwd = os.getcwd()
 
@@ -188,6 +199,7 @@ class Zeus(object):
         self.files_filepath = list()
         self.files_extension = list()
         self.files = dict()
+        self.files_all = dict()
         self.catalog = list()
 
         # Constants:
@@ -211,12 +223,26 @@ class Zeus(object):
         else:
             self.format_pols()
             self.find_files()
-            for pol in self.inputpols:
-                eris = mW.Eris(self, pol)
-                eris.name_npz()
-                eris.load_MIRIAD()
-                eris.pitchfork()
-                eris.save()
+            if self.step:
+                for self.i in range(0, len(self.files_all[self.files_all.keys()[0]]), self.step):
+                    for pol in self.files_all:
+                        self.files[pol] = self.files_all[pol][self.i:self.i + self.step]
+                    for pol in self.inputpols:
+                        eris = mW.Eris(self, pol)
+                        eris.name_npz()
+                        eris.load_MIRIAD()
+                        eris.pitchfork()
+                        eris.save()
+
+                    self.files = dict()
+            else:
+                self.files = self.files_all
+                for pol in self.inputpols:
+                    eris = mW.Eris(self, pol)
+                    eris.name_npz()
+                    eris.load_MIRIAD()
+                    eris.pitchfork()
+                    eris.save()
 
     def catalog_directory(self):
         # """Catalogs the MIRIAD files in a directory and looks for each file's polarization, JD, and LST,
@@ -292,10 +318,10 @@ class Zeus(object):
                     raise Exception("You must indicate which type of range you would like to use (JDRange, LSTrRange, LSTRange).")
 
                 if len(indices):
-                    if pol not in self.files:
-                        self.files[pol] = [key]
+                    if pol not in self.files_all:
+                        self.files_all[pol] = [key]
                     else:
-                        self.files[pol].append(key)
+                        self.files_all[pol].append(key)
                 else:
                     del self.catalog[pol][index][key]
 

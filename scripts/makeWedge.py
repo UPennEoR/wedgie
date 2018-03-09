@@ -51,10 +51,13 @@ class Eris(object):
         self.wedgeslices = list()
 
     def name_npz(self):
-        file0 = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][0].keys()[0]
-        filef = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][-1].keys()[0]
-        JDT0 = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][0][file0]['JD'][0]
-        JDTf = self.Zeus.catalog[self.Zeus.catalog.keys()[0]][-1][filef]['JD'][0]
+        temp_pol = self.Zeus.catalog.keys()[0]
+        file0 = self.Zeus.files[temp_pol][0]
+        filef = self.Zeus.files[temp_pol][-1]
+        step_adjusted = len(self.Zeus.files[temp_pol])
+        JDT0 = self.Zeus.catalog[temp_pol][self.Zeus.i][file0]['JD'][0]
+        JDTf = self.Zeus.catalog[temp_pol][self.Zeus.i + step_adjusted - 1][filef]['JD'][0]
+
         JD = int(JDT0)
 
         JDT0 = [str(JDT0 - JD)[2:7]]
@@ -63,7 +66,6 @@ class Eris(object):
         JDT = ['_{files}_'.format(files=len(self.Zeus.files[self.Zeus.files.keys()[0]])).join(JDT0 + JDTf)]
         pol = [self.pol]
         freqrange = ['{start}_{end}'.format(start=self.Zeus.freqrange[0], end=self.Zeus.freqrange[1])]
-        tag = [self.Zeus.tag]
         zen = ['zen']
         HH = ['HH']
 
@@ -75,7 +77,7 @@ class Eris(object):
 
         ext = [file0.split('.')[-1]]
 
-        npz_name = zen + JD + JDT + pol + exants + freqrange + HH + ext + tag + ['npz']
+        npz_name = zen + JD + JDT + pol + exants + freqrange + HH + ext + ['npz']
         npz_name = '.'.join(npz_name)
         self.npz_name = os.path.join(self.Zeus.path, npz_name)
 
