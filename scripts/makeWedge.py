@@ -8,22 +8,23 @@ Amy Igarashi <igarashiamy_at_gmail.com>
 Saul Aryeh Kohn <saulkohn_at_sas.upenn.edu>
 Paul La Plante <plaplant_at_sas.upenn.edu>
 """
+# Python Standard Modules
 import os
 
+# Python Community Science Modules
 import numpy as np
-import ephem
 import matplotlib.pyplot as plt
 import astropy.units as u
 import astropy.constants as c
 import astropy.cosmology as cos
 
+# HERA Collaboration Modules
 from pyuvdata import UVData
 import pyuvdata.utils as uvutils
 import aipy
 import hera_cal
 
-
-# Interactive Development
+# For Interactive Development
 from IPython import embed
 
 class Eris(object):
@@ -51,36 +52,43 @@ class Eris(object):
         self.wedgeslices = list()
 
     def name_npz(self):
-        temp_pol = self.Zeus.catalog.keys()[0]
-        file0 = self.Zeus.files[temp_pol][0]
-        filef = self.Zeus.files[temp_pol][-1]
-        step_adjusted = len(self.Zeus.files[temp_pol])
-        JDT0 = self.Zeus.catalog[temp_pol][self.Zeus.i][file0]['JD'][0]
-        JDTf = self.Zeus.catalog[temp_pol][self.Zeus.i + step_adjusted - 1][filef]['JD'][0]
+        zen = 'zen'
+        HH = 'HH'
 
-        JD = int(JDT0)
+        extension = self.Zeus.ext
+        pol_naming = self.Zeus.catalog[extension].keys()[0]
 
-        JDT0 = [str(JDT0 - JD)[2:7]]
-        JDTf = [str(JDTf - JD)[2:7]]
-        JD = [str(JD)]
-        JDT = ['_{files}_'.format(files=len(self.Zeus.files[self.Zeus.files.keys()[0]])).join(JDT0 + JDTf)]
-        pol = [self.pol]
-        freqrange = ['{start}_{end}'.format(start=self.Zeus.freqrange[0], end=self.Zeus.freqrange[1])]
-        zen = ['zen']
-        HH = ['HH']
+        data_file0 = self.Zeus.catalog[extension][pol_naming][0]
+        data_filef = self.Zeus.catalog[extension][pol_naming][-1]
+
+        file0 = data_file0['file']
+        filef = data_filef['file']
+
+        JD = int(data_file0['JD'])
+        JDT0 = data_file0['JD'] - JD
+        JDTf = data_filef['JD'] - JD
+
+        JD = str(JD)
+        JDT0 = str(JDT0)[2:7]
+        JDTf = str(JDTf)[2:7]
+
+        num_files = np.unique(self.Zeus.catalog[extension][pol_naming]['file']).shape[0]
+        JDT = '{JDT0}_{num_files}_{JDTf}'.format(JDT0=JDT0, num_files=num_files, JDTf=JDTf)
+
+        pol = self.pol
 
         if self.Zeus.exants:
             exants = [str(ant) for ant in self.Zeus.exants]
-            exants = ['_'.join(exants)]
+            exants = '_'.join(exants)
         else:
-            exants = ['None']
+            exants = 'None'
 
-        ext = [file0.split('.')[-1]]
+        freqrange = '{start}_{end}'.format(start=self.Zeus.freqrange[0], end=self.Zeus.freqrange[1])
 
-        npz_name = zen + JD + JDT + pol + exants + freqrange + HH + ext + ['npz']
+        npz_name = [zen, JD, JDT, pol, exants, freqrange, HH, extension, 'npz']
         npz_name = '.'.join(npz_name)
-        self.npz_name = os.path.join(self.Zeus.path, npz_name)
 
+        self.npz_name = os.path.join(self.Zeus.path, npz_name)
         print(self.npz_name)
 
     def load_MIRIAD(self):
@@ -311,8 +319,6 @@ class Eris(object):
         num_bins = self.info['freqs'].shape[0]
         delays = np.fft.fftshift(np.fft.fftfreq(num_bins, channel_width))
 
-        # print(delays)
-
         np.savez(self.npz_name,
                  Zeus=self.Zeus,
                  wslices=self.wedgeslices,
@@ -373,19 +379,24 @@ class Ares(object):
 
             wedgeslices = wedgeslices_stretch[...]
 
+            # Apply astropy units to necessary quantities
+            units_delays = delays*u.ns
+            units_baselines = baselines*u.m
+
+            # Get horizons before cosmo units are applied
+            horizons = []
+            for bl in units_baselines:
+                horizons.append((bl / c.c).to(u.ns))
+
+            # Convert frequency range from channels to Gigahertz
+            units_freqrange = (freqrange * .1/1024. + .1)*u.GHz
+
+            # Calculate bandwidth and center frequency
+            bandwidth = units_freqrange[1] - units_freqrange[0]
+            center_frequency = bandwidth / 2. + units_freqrange[0]
+            
             if self.Zeus.tag_unit == "cosmo":
                 """Calculate cosmological units"""
-                # First apply astropy units to necessary quantities
-                units_delays = delays*u.ns
-                units_baselines = baselines*u.m
-
-                # Convert frequency range from channels to Gigahertz
-                units_freqrange = (freqrange * .1/1024. + .1)*u.GHz
-
-                # Calculate bandwidth and center frequency
-                bandwidth = units_freqrange[1] - units_freqrange[0]
-                center_frequency = bandwidth / 2. + units_freqrange[0]
-
                 # Calculate the redshift, z, of the 21cm line given the center frequency
                 F21 = 1.42040575177*u.GHz
                 z = (F21 / center_frequency) - 1.
@@ -431,7 +442,7 @@ class Ares(object):
                 label_kpl_tau_w = np.array([0, 0.5, 1, 1.5, 2, 2.5]) * self.delay_range_multipler
 
                 # Set dynamic range
-                vmin, vmax = 7, 13
+                vmin, vmax = 6, 15
 
                 # Remove units from kpl and kpr
                 kpl, kpr = kpl.value, kpr.value
@@ -442,25 +453,22 @@ class Ares(object):
                 axis_kpr_b = r'$\rm {\bf |b|}\ [m]$'
                 axis_power = r'$\log_{10}({\rm mK}^2)$'
                 axis_kpr_b_1d = [str(bl) + ' m' for bl in np.round(baselines, 1)]
-                
+
                 # Set kpl/delay axis labels
                 label_kpl_tau_pf = np.array([-4000, -2000, 0, 2000, 4000]) * self.delay_range_multipler
                 label_kpl_tau_w = np.array([0, 1000, 2000, 3000, 4000]) * self.delay_range_multipler
 
                 # Set dynamic range
-                vmin, vmax = -8, -2
+                vmin, vmax = -8, 0
 
                 # Set defualt kpl, kpr values
                 kpl, kpr = 1., 1.
 
             # Calculate horizon lines
-            horizons = []
-            for bl in baselines:
-                horizons.append(bl / c.c * 10**9)
             j = 0
             for i in range(len(horizons)):
-                x1, y1 = [horizons[i], horizons[i]], [j, kpr_indices[i]]
-                x2, y2 = [-horizons[i], -horizons[i]], [j, kpr_indices[i]]
+                x1, y1 = [horizons[i] * kpl, horizons[i] * kpl], [j, kpr_indices[i]]
+                x2, y2 = [-horizons[i] * kpl, -horizons[i] * kpl], [j, kpr_indices[i]]
                 if 'pf' in self.Zeus.tag_wedge:
                     ax.plot(x1, y1, x2, y2, color='#ffffff', linestyle='--', linewidth=1)
                 elif 'w' in self.Zeus.tag_wedge:
@@ -470,7 +478,7 @@ class Ares(object):
             if self.Zeus.tag == "timeavg":
                 if self.Zeus.tag_wedge == "1dpf":
                     plt.sca(axes[k])
-                    j=0
+                    j = 0
                     for i, bl in enumerate(baselines):
                         plt.plot(
                             delays,
@@ -480,7 +488,7 @@ class Ares(object):
                     f.text(self.xaxis_x, self.xaxis_y, axis_kpl_tau, fontsize=self.fontsize, ha='center')
                     f.text(self.yaxis_x, self.yaxis_y, axis_power, fontsize=self.fontsize, va='center', rotation='vertical')
                     plt.ylim((vmin, vmax))
-                    plt.xlim((-5000 * self.delay_range_multipler * kpl, 5000 * self.delay_range_multipler * kpl))
+                    plt.xlim((-5000 * kpl * self.delay_range_multipler, 5000 * kpl * self.delay_range_multipler))
                     plt.xticks(label_kpl_tau_pf)
 
                 else:
@@ -490,7 +498,7 @@ class Ares(object):
                         f.text(self.yaxis_x, self.yaxis_y, axis_kpr_b, fontsize=self.fontsize, va='center', rotation='vertical')
                         plt.xticks(label_kpl_tau_pf)
                         plt.yticks(kpr_midindices, [np.round(bl, 3) for bl in baselines])
-                        plt.xlim((-5000 * self.delay_range_multipler * kpl, 5000 * self.delay_range_multipler * kpl))
+                        plt.xlim((-5000 * kpl * self.delay_range_multipler, 5000 * kpl * self.delay_range_multipler))
                         plt.axvline(x=0, color='#000000', linestyle='--', linewidth=1)
                         extent = [delays[0], delays[-1], kpr_indices[-1], 0]
                     elif self.Zeus.tag_wedge == "w":
@@ -501,7 +509,7 @@ class Ares(object):
                         f.text(self.yaxis_x, self.yaxis_y, axis_kpl_tau, fontsize=self.fontsize, va='center', rotation='vertical')
                         plt.yticks(label_kpl_tau_w)
                         plt.xticks(kpr_midindices, [np.round(bl, 3) for bl in baselines], rotation=45)
-                        plt.ylim((0, 5000 * self.delay_range_multipler * kpl))
+                        plt.ylim((0, 5000 * kpl * self.delay_range_multipler))
                         extent = [0, kpr_indices[-1], 0, delays[-1]]
 
                     plot = plt.imshow(
@@ -536,11 +544,29 @@ class Ares(object):
                 elif self.Zeus.tag_wedge == "1dpf":
                     pass
 
-        start = self.fileZeus.catalog['xx'][0][self.fileZeus.catalog['xx'][0].keys()[0]]['LST'][0]
-        stop = self.fileZeus.catalog['xx'][-1][self.fileZeus.catalog['xx'][-1].keys()[0]]['LST'][-1]
+
+        extension = self.fileZeus.ext
+        pol_naming = self.fileZeus.catalog[extension].keys()[0]
+        
+        start_lst = self.fileZeus.catalog[extension][pol_naming]['LST'][0]
+        hours = int(start_lst)
+        mins = str((start_lst * 60) % 60).split('.')[0]
+        if len(mins) == 1:
+            mins = '0' + mins
+        self.start_lst_str = '{HH}:{MM:.2}'.format(HH=hours, MM=mins)
+        self.LST0 = '{HH}.{MM:.2}'.format(HH=hours, MM=mins)
+
+        stop_lst = self.fileZeus.catalog[extension][pol_naming]['LST'][-1]
+        hours = int(stop_lst)
+        mins = str((stop_lst * 60) % 60).split('.')[0]
+        if len(mins) == 1:
+            mins = '0' + mins
+        self.stop_lst_str = '{HH}:{MM:.2}'.format(HH=hours, MM=mins)
+        self.LSTf = '{HH}.{MM:.2}'.format(HH=hours, MM=mins)
+
         plt.suptitle("Start: {}\nStop: {}\nBandwidth: {}\nCentral Frequency: {}".format(
-                start,
-                stop,
+                self.start_lst_str,
+                self.stop_lst_str,
                 np.round(bandwidth.to(u.MHz), 2),
                 np.round(center_frequency.to(u.MHz), 2)))
         plt.tick_params(axis='both', direction='inout')
@@ -557,31 +583,45 @@ class Ares(object):
         plt.savefig(self.plot_name)
 
     def name_plot(self):
-        file0 = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][0].keys()[0]
-        filef = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][-1].keys()[0]
-        JDT0 = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][0][file0]['JD'][0]
-        JDTf = self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]][-1][filef]['JD'][0]
-        JD = int(JDT0)
+        zen = 'zen'
+        HH = 'HH'
 
-        JDT0 = [str(JDT0 - JD)[2:7]]
-        JDTf = [str(JDTf - JD)[2:7]]
-        JD = [str(JD)]
-        JDT = ['_{files}_'.format(files=len(self.fileZeus.catalog[self.fileZeus.catalog.keys()[0]])).join(JDT0 + JDTf)]
-        pol = [''.join(self.pols)]
-        freqrange = ['{start}_{end}'.format(start=self.fileZeus.freqrange[0], end=self.fileZeus.freqrange[1])]
-        tag = ['_'.join([self.Zeus.tag] + [self.Zeus.tag_wedge] + [self.Zeus.tag_unit])]
+        extension = self.fileZeus.ext
+        pol_naming = self.fileZeus.catalog[extension].keys()[0]
 
-        zen = ['zen']
-        HH = ['HH']
+        data_file0 = self.fileZeus.catalog[extension][pol_naming][0]
+        data_filef = self.fileZeus.catalog[extension][pol_naming][-1]
+
+        file0 = data_file0['file']
+        filef = data_filef['file']
+
+        JD = int(data_file0['JD'])
+        JDT0 = data_file0['JD'] - JD
+        JDTf = data_filef['JD'] - JD
+
+        JD = str(JD)
+        JDT0 = str(JDT0)[2:7]
+        JDTf = str(JDTf)[2:7]
+
+        num_files = np.unique(self.fileZeus.catalog[extension][pol_naming]['file']).shape[0]
+        JDT = '{JDT0}_{num_files}_{JDTf}'.format(JDT0=JDT0, num_files=num_files, JDTf=JDTf)
+
+        LST = '{LST0}_{num_files}_{LSTf}'.format(LST0=self.LST0, num_files=num_files, LSTf=self.LSTf)
+
+        pol = ''.join(self.pols)
 
         if self.fileZeus.exants:
             exants = [str(ant) for ant in self.fileZeus.exants]
-            exants = ['_'.join(exants)]
+            exants = '_'.join(exants)
         else:
-            exants = ['None']
+            exants = 'None'
 
-        ext = [file0.split('.')[-1]]
+        freqrange = '{start}_{end}'.format(start=self.fileZeus.freqrange[0], end=self.fileZeus.freqrange[1])
+        tag = '_'.join([self.Zeus.tag] + [self.Zeus.tag_wedge] + [self.Zeus.tag_unit])
 
-        self.plot_name = zen + JD + JDT + pol + exants + freqrange + HH + ext + tag + ['pdf']
-        self.plot_name = '.'.join(self.plot_name)
-        self.plot_name = os.path.join(self.Zeus.path, self.plot_name)
+        # npz_name = [zen, JD, JDT, pol, exants, freqrange, HH, extension, tag, 'png']
+        npz_name = [zen, JD, LST, pol, exants, freqrange, HH, extension, tag, 'png']
+        npz_name = '.'.join(npz_name)
+
+        self.plot_name = os.path.join(self.Zeus.path, npz_name)
+        print(self.plot_name)
