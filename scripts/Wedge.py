@@ -266,7 +266,7 @@ class Zeus(object):
         catalog = {ext: {} for ext in self.extension}
 
         for ext in self.extension:
-            files_extension = glob.glob(self.filepath + '/*' + ext)
+            files_extension = glob.glob(self.filepath + '/zen.*' + ext)
             if len(files_extension) == 0:
                 raise Exception("There are no files with extension '{}' in file path '{}'.".format(ext, self.filepath))
 
