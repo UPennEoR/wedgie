@@ -72,28 +72,28 @@ parser.add_argument("-R",
     help="Designate with frequency band to analyze.",
     default=None)
 
-# Designate the depth of analysis tag
-parser.add_argument("--blavg",
-    help="Toggle baseline averaging only.",
-    action="store_true")
-parser.add_argument("--flavors",
-    help="Toggle splitting wedgeslices into a per slope, per baseline basis.",
-    action="store_true")
-parser.add_argument("--blnum",
-    help="Input one baseline type (1-8 for H0C).",
-    type=int)
-
+# Time-Averaging Tag
+parser.add_argument("-A",
+    "--tag_avg",
+    help="Time average or non-time averaged plots",
+    choices=["timeavg", "blavg"],
+    default="timeavg")
+# Depth of analysis tag
+parser.add_argument("-D",
+    "--tag_depth",
+    choices=["bl", "sl", "ant"],
+    default="bl")
+# Pitchfork or Wedge tag
+parser.add_argument("-W",
+    "--tag_wedge",
+    choices=["pf", "w", "1d", "1d"],
+    default="pf")
 # Unit type tag
 parser.add_argument("-U",
     "--tag_unit",
     help="Designate the units to be used",
     choices=["std", "cosmo"],
-    default="cosmo")
-# Pitchfork or Wedge tag
-parser.add_argument("-W",
-    "--tag_wedge",
-    choices=["pf", "w", "1dpf", "1dw"],
-    default="w")
+    default="std")
 
 # Save path
 parser.add_argument("-p",
@@ -114,6 +114,10 @@ parser.add_argument("--CLEAN",
     help="Designate the CLEAN tolerance.",
     type=float,
     default=1e-3)
+parser.add_argument("-T",
+    "--title",
+    type=int,
+    default=1)
 
 # Stepping through files
 parser.add_argument("-S",
@@ -157,21 +161,14 @@ class Zeus(object):
             args.freqrange = '200_300'
         self.freqrange = [int(freq) for freq in args.freqrange.split('_')]
 
-        # Analysis Tag
-        if args.blavg:
-            self.tag = 'blavg'
-        elif args.flavors:
-            self.tag = 'flavors'
-        elif args.blnum:
-            self.tag = 'blnum{}'.format(args.blnum)
-        else:
-            self.tag = 'timeavg'
-
-        # Wedge Tag
+        # Plotting Tags
+        self.tag_avg = args.tag_avg
+        self.tag_depth = args.tag_depth
+        self.tag_unit = args.tag_unit
         self.tag_wedge = args.tag_wedge
 
-        # Unit-type Tag
-        self.tag_unit = args.tag_unit
+        # Turn plot titles on/off
+        self.title = bool(args.title)
 
         # Extension used for cataloging directories
         if args.extension:
